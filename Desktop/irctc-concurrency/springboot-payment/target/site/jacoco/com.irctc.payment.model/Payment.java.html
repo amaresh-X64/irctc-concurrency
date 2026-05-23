@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Payment.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">payment-service</a> &gt; <a href="index.source.html" class="el_package">com.irctc.payment.model</a> &gt; <span class="el_source">Payment.java</span></div><h1>Payment.java</h1><pre class="source lang-java linenums">package com.irctc.payment.model;
+
+import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = &quot;payments&quot;)
+<span class="fc" id="L9">public class Payment {</span>
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer id;
+
+    @Column(name = &quot;booking_id&quot;)
+    private Integer bookingId;
+
+    @Column(name = &quot;user_id&quot;)
+    private Integer userId;
+
+    @Column(name = &quot;amount&quot;, nullable = false)
+    private BigDecimal amount;
+
+    @Column(name = &quot;status&quot;)
+    private String status;
+
+    @Column(name = &quot;payment_method&quot;)
+    private String paymentMethod;
+
+    @Column(name = &quot;transaction_id&quot;, unique = true)
+    private String transactionId;
+
+    @Column(name = &quot;paid_at&quot;)
+    private LocalDateTime paidAt;
+
+    @Column(name = &quot;created_at&quot;)
+    private LocalDateTime createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+<span class="nc" id="L41">        createdAt = LocalDateTime.now();</span>
+<span class="nc" id="L42">    }</span>
+
+<span class="fc" id="L44">    public Integer getId() { return id; }</span>
+<span class="fc" id="L45">    public void setId(Integer id) { this.id = id; }</span>
+<span class="fc" id="L46">    public Integer getBookingId() { return bookingId; }</span>
+<span class="fc" id="L47">    public void setBookingId(Integer bookingId) { this.bookingId = bookingId; }</span>
+<span class="fc" id="L48">    public Integer getUserId() { return userId; }</span>
+<span class="fc" id="L49">    public void setUserId(Integer userId) { this.userId = userId; }</span>
+<span class="fc" id="L50">    public BigDecimal getAmount() { return amount; }</span>
+<span class="fc" id="L51">    public void setAmount(BigDecimal amount) { this.amount = amount; }</span>
+<span class="fc" id="L52">    public String getStatus() { return status; }</span>
+<span class="fc" id="L53">    public void setStatus(String status) { this.status = status; }</span>
+<span class="fc" id="L54">    public String getPaymentMethod() { return paymentMethod; }</span>
+<span class="fc" id="L55">    public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }</span>
+<span class="fc" id="L56">    public String getTransactionId() { return transactionId; }</span>
+<span class="fc" id="L57">    public void setTransactionId(String transactionId) { this.transactionId = transactionId; }</span>
+<span class="fc" id="L58">    public LocalDateTime getPaidAt() { return paidAt; }</span>
+<span class="fc" id="L59">    public void setPaidAt(LocalDateTime paidAt) { this.paidAt = paidAt; }</span>
+<span class="fc" id="L60">    public LocalDateTime getCreatedAt() { return createdAt; }</span>
+<span class="nc" id="L61">    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

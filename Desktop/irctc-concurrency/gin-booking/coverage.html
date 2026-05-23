@@ -1,0 +1,538 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>booking: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">gin-booking/internal/booking/controller.go (100.0%)</option>
+				
+				<option value="file1">gin-booking/internal/booking/repository.go (0.0%)</option>
+				
+				<option value="file2">gin-booking/internal/booking/service.go (0.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package booking
+
+import (
+        "net/http"
+        "strconv"
+
+        "gin-booking/internal/booking/dto"
+        "gin-booking/internal/constants"
+        "gin-booking/internal/helpers"
+
+        "github.com/gin-gonic/gin"
+)
+
+// Add this interface above the Controller struct
+type ServiceInterface interface {
+        BookSeat(req dto.BookingRequest) (interface{}, error, bool)
+        CancelBooking(req dto.CancelRequest) (interface{}, error)
+        GetUserBookings(userID int) (interface{}, error)
+        IsSeatLocked(trainID, seatID int, journeyDate string) bool
+        IsSeatAvailable(seatID int) bool
+}
+
+type Controller struct {
+        service ServiceInterface
+}
+
+func NewController(service ServiceInterface) *Controller <span class="cov8" title="1">{
+        return &amp;Controller{service: service}
+}</span>
+
+// ─── Register all booking routes ───────────────
+func (ctrl *Controller) RegisterRoutes(rg *gin.RouterGroup) <span class="cov8" title="1">{
+        booking := rg.Group("/bookings")
+        </span><span class="cov8" title="1">{
+                booking.POST("/", ctrl.CreateBooking)
+                booking.DELETE("/cancel", ctrl.CancelBooking)
+                booking.GET("/user/:user_id", ctrl.GetUserBookings)
+                booking.GET("/seat-status", ctrl.CheckSeatStatus)
+        }</span>
+}
+
+// ─── POST /bookings — Create booking ──────────
+func (ctrl *Controller) CreateBooking(c *gin.Context) <span class="cov8" title="1">{
+        var req dto.BookingRequest
+
+        if err := c.ShouldBindJSON(&amp;req); err != nil </span><span class="cov8" title="1">{
+                helpers.ErrorResponse(c, http.StatusBadRequest,
+                        constants.MsgInvalidRequest, nil)
+                return
+        }</span>
+
+        <span class="cov8" title="1">response, err, isSeatTaken := ctrl.service.BookSeat(req)
+
+        if isSeatTaken </span><span class="cov8" title="1">{
+                helpers.ErrorResponse(c, http.StatusConflict,
+                        constants.MsgSeatTaken, nil)
+                return
+        }</span>
+
+        <span class="cov8" title="1">if err != nil </span><span class="cov8" title="1">{
+                helpers.ErrorResponse(c, http.StatusInternalServerError,
+                        constants.MsgServerError, nil)
+                return
+        }</span>
+
+        <span class="cov8" title="1">helpers.SuccessResponse(c, http.StatusCreated,
+                constants.MsgBookingSuccess, response)</span>
+}
+
+// ─── DELETE /bookings/cancel — Cancel booking ──
+func (ctrl *Controller) CancelBooking(c *gin.Context) <span class="cov8" title="1">{
+        var req dto.CancelRequest
+
+        if err := c.ShouldBindJSON(&amp;req); err != nil </span><span class="cov8" title="1">{
+                helpers.ErrorResponse(c, http.StatusBadRequest,
+                        constants.MsgInvalidRequest, nil)
+                return
+        }</span>
+
+        <span class="cov8" title="1">response, err := ctrl.service.CancelBooking(req)
+        if err != nil </span><span class="cov8" title="1">{
+                helpers.ErrorResponse(c, http.StatusNotFound, err.Error(), nil)
+                return
+        }</span>
+
+        <span class="cov8" title="1">helpers.SuccessResponse(c, http.StatusOK,
+                constants.MsgCancelSuccess, response)</span>
+}
+
+// ─── GET /bookings/user/:user_id ───────────────
+func (ctrl *Controller) GetUserBookings(c *gin.Context) <span class="cov8" title="1">{
+        userID, err := strconv.Atoi(c.Param("user_id"))
+        if err != nil </span><span class="cov8" title="1">{
+                helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid user ID", nil)
+                return
+        }</span>
+
+        <span class="cov8" title="1">bookings, err := ctrl.service.GetUserBookings(userID)
+        if err != nil </span><span class="cov8" title="1">{
+                helpers.ErrorResponse(c, http.StatusInternalServerError,
+                        constants.MsgServerError, nil)
+                return
+        }</span>
+
+        <span class="cov8" title="1">helpers.SuccessResponse(c, http.StatusOK, "Bookings fetched", bookings)</span>
+}
+
+// ─── GET /bookings/seat-status — Check if locked
+func (ctrl *Controller) CheckSeatStatus(c *gin.Context) <span class="cov8" title="1">{
+        trainID, _ := strconv.Atoi(c.Query("train_id"))
+        seatID, _ := strconv.Atoi(c.Query("seat_id"))
+        journeyDate := c.Query("journey_date")
+
+        isLocked := ctrl.service.IsSeatLocked(trainID, seatID, journeyDate)
+        isAvailable := ctrl.service.IsSeatAvailable(seatID)
+
+        helpers.SuccessResponse(c, http.StatusOK, "Seat status", gin.H{
+                "seat_id":      seatID,
+                "is_locked":    isLocked,
+                "is_available": isAvailable,
+        })
+}</span>
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package booking
+
+import (
+        "database/sql"
+        "time"
+)
+
+type Repository struct {
+        db *sql.DB
+}
+
+func NewRepository(db *sql.DB) *Repository <span class="cov0" title="0">{
+        return &amp;Repository{db: db}
+}</span>
+
+// ─── Get seat by ID ────────────────────────────
+func (r *Repository) GetSeatByID(seatID int) (*Seat, error) <span class="cov0" title="0">{
+        seat := &amp;Seat{}
+        err := r.db.QueryRow(`
+                SELECT id, train_id, seat_number, seat_type, is_available
+                FROM seats WHERE id = $1
+        `, seatID).Scan(
+                &amp;seat.ID, &amp;seat.TrainID,
+                &amp;seat.SeatNumber, &amp;seat.SeatType, &amp;seat.IsAvailable,
+        )
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return seat, nil</span>
+}
+
+// ─── Mark seat as unavailable ──────────────────
+func (r *Repository) LockSeat(seatID int, tx *sql.Tx) error <span class="cov0" title="0">{
+        _, err := tx.Exec(`
+                UPDATE seats SET is_available = false WHERE id = $1
+        `, seatID)
+        return err
+}</span>
+
+// ─── Decrement available seats on train ────────
+func (r *Repository) DecrementAvailableSeats(trainID int, tx *sql.Tx) error <span class="cov0" title="0">{
+        _, err := tx.Exec(`
+                UPDATE trains
+                SET available_seats = available_seats - 1
+                WHERE id = $1 AND available_seats &gt; 0
+        `, trainID)
+        return err
+}</span>
+
+// ─── Create booking record ─────────────────────
+// ─── Create booking record ─────────────────────
+func (r *Repository) CreateBooking(
+        userID, trainID, seatID int,
+        journeyDate, status string,
+        tx *sql.Tx,
+) (int, error) <span class="cov0" title="0">{
+        var bookingID int
+        err := tx.QueryRow(`
+                INSERT INTO bookings (user_id, train_id, seat_id, journey_date, status, booked_at)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING id
+        `, userID, trainID, seatID, journeyDate, status, time.Now()).Scan(&amp;bookingID)
+        return bookingID, err
+}</span>
+
+// ─── Get booking by ID ─────────────────────────
+func (r *Repository) GetBookingByID(bookingID int) (*Booking, error) <span class="cov0" title="0">{
+        booking := &amp;Booking{}
+        err := r.db.QueryRow(`
+                SELECT id, user_id, train_id, seat_id, journey_date, status, booked_at
+                FROM bookings WHERE id = $1
+        `, bookingID).Scan(
+                &amp;booking.ID, &amp;booking.UserID, &amp;booking.TrainID,
+                &amp;booking.SeatID, &amp;booking.JourneyDate,
+                &amp;booking.Status, &amp;booking.BookedAt,
+        )
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return booking, nil</span>
+}
+
+// ─── Cancel booking ────────────────────────────
+func (r *Repository) CancelBooking(bookingID int) error <span class="cov0" title="0">{
+        _, err := r.db.Exec(`
+                UPDATE bookings SET status = 'CANCELLED' WHERE id = $1
+        `, bookingID)
+        return err
+}</span>
+
+// ─── Unlock seat on cancel ─────────────────────
+func (r *Repository) UnlockSeat(seatID int) error <span class="cov0" title="0">{
+        _, err := r.db.Exec(`
+                UPDATE seats SET is_available = true WHERE id = $1
+        `, seatID)
+        return err
+}</span>
+
+// ─── Get bookings by user ──────────────────────
+// ─── Get bookings by user with seat number ─────
+func (r *Repository) GetBookingsByUser(userID int) ([]Booking, error) <span class="cov0" title="0">{
+        rows, err := r.db.Query(`
+                SELECT b.id, b.user_id, b.train_id, b.seat_id, 
+                       b.journey_date, b.status, b.booked_at,
+                       s.seat_number
+                FROM bookings b
+                JOIN seats s ON s.id = b.seat_id
+                WHERE b.user_id = $1
+                ORDER BY b.booked_at DESC
+        `, userID)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">defer rows.Close()
+
+        var bookings []Booking
+        for rows.Next() </span><span class="cov0" title="0">{
+                var b Booking
+                err := rows.Scan(
+                        &amp;b.ID, &amp;b.UserID, &amp;b.TrainID,
+                        &amp;b.SeatID, &amp;b.JourneyDate,
+                        &amp;b.Status, &amp;b.BookedAt,
+                        &amp;b.SeatNumber,
+                )
+                if err != nil </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+                <span class="cov0" title="0">bookings = append(bookings, b)</span>
+        }
+        <span class="cov0" title="0">return bookings, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package booking
+
+import (
+        "database/sql"
+        "fmt"
+        "log"
+        "time"
+
+        "gin-booking/internal/booking/dto"
+        "gin-booking/internal/constants"
+        redisClient "gin-booking/pkg/redis"
+
+        "github.com/redis/go-redis/v9"
+)
+
+type Service struct {
+        repo *Repository
+        db   *sql.DB
+}
+
+func NewService(db *sql.DB) *Service <span class="cov0" title="0">{
+        return &amp;Service{
+                repo: NewRepository(db),
+                db:   db,
+        }
+}</span>
+
+// ─── THE CORE — Atomic seat booking ───────────
+// This is where concurrency is handled
+// Redis SETNX = Set if Not Exists
+// Only ONE user can set the lock — others fail instantly
+func (s *Service) BookSeat(req dto.BookingRequest) (*dto.BookingResponse, error, bool) <span class="cov0" title="0">{
+
+        // ── Step 1: Build Redis lock key ────────────
+        lockKey := fmt.Sprintf("%s%d:%d:%s",
+                constants.SeatLockPrefix,
+                req.TrainID,
+                req.SeatID,
+                req.JourneyDate,
+        )
+
+        // ── Step 2: Try to acquire Redis lock ───────
+        // SetNX = SET if Not eXists
+        // If key already exists → someone else has it → return false
+        locked, err := redisClient.Client.SetNX(
+                redisClient.Ctx,
+                lockKey,
+                req.UserID,
+                time.Duration(constants.SeatLockTTL)*time.Second,
+        ).Result()
+
+        if err != nil </span><span class="cov0" title="0">{
+                log.Printf("❌ Redis error: %v", err)
+                return nil, fmt.Errorf("redis error"), false
+        }</span>
+
+        // ── Step 3: Lock failed = seat taken ────────
+        <span class="cov0" title="0">if !locked </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf(constants.MsgSeatTaken), true
+        }</span>
+
+        // ── Step 4: Start DB transaction ────────────
+        <span class="cov0" title="0">tx, err := s.db.Begin()
+        if err != nil </span><span class="cov0" title="0">{
+                // Release Redis lock if DB fails
+                redisClient.Client.Del(redisClient.Ctx, lockKey)
+                return nil, err, false
+        }</span>
+
+        // ── Step 5: Verify seat is still available ──
+        <span class="cov0" title="0">seat, err := s.repo.GetSeatByID(req.SeatID)
+        if err != nil || !seat.IsAvailable </span><span class="cov0" title="0">{
+                tx.Rollback()
+                redisClient.Client.Del(redisClient.Ctx, lockKey)
+                return nil, fmt.Errorf(constants.MsgSeatTaken), true
+        }</span>
+
+        // ── Step 6: Lock seat in DB ─────────────────
+        <span class="cov0" title="0">if err := s.repo.LockSeat(req.SeatID, tx); err != nil </span><span class="cov0" title="0">{
+                tx.Rollback()
+                redisClient.Client.Del(redisClient.Ctx, lockKey)
+                return nil, err, false
+        }</span>
+
+        // ── Step 7: Decrement available seats ───────
+        <span class="cov0" title="0">if err := s.repo.DecrementAvailableSeats(req.TrainID, tx); err != nil </span><span class="cov0" title="0">{
+                tx.Rollback()
+                redisClient.Client.Del(redisClient.Ctx, lockKey)
+                return nil, err, false
+        }</span>
+
+        // ── Step 8: Create booking record ───────────
+        <span class="cov0" title="0">bookingID, err := s.repo.CreateBooking(
+                req.UserID, req.TrainID, req.SeatID,
+                req.JourneyDate, constants.StatusConfirmed, tx,
+        )
+        if err != nil </span><span class="cov0" title="0">{
+                tx.Rollback()
+                redisClient.Client.Del(redisClient.Ctx, lockKey)
+                return nil, err, false
+        }</span>
+
+        // ── Step 9: Commit everything ───────────────
+        <span class="cov0" title="0">if err := tx.Commit(); err != nil </span><span class="cov0" title="0">{
+                redisClient.Client.Del(redisClient.Ctx, lockKey)
+                return nil, err, false
+        }</span>
+
+        <span class="cov0" title="0">log.Printf("✅ Seat %d booked by user %d — booking %d", req.SeatID, req.UserID, bookingID)
+
+        return &amp;dto.BookingResponse{
+                BookingID:   bookingID,
+                UserID:      req.UserID,
+                TrainID:     req.TrainID,
+                SeatID:      req.SeatID,
+                SeatNumber:  seat.SeatNumber,
+                JourneyDate: req.JourneyDate,
+                Status:      constants.StatusConfirmed,
+                BookedAt:    time.Now(),
+        }, nil, false</span>
+}
+
+// ─── Cancel booking ────────────────────────────
+func (s *Service) CancelBooking(req dto.CancelRequest) (*dto.CancelResponse, error) <span class="cov0" title="0">{
+        booking, err := s.repo.GetBookingByID(req.BookingID)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf(constants.MsgBookingNotFound)
+        }</span>
+
+        // Unlock seat
+        <span class="cov0" title="0">s.repo.UnlockSeat(booking.SeatID)
+
+        // Cancel booking
+        s.repo.CancelBooking(req.BookingID)
+
+        // Remove Redis lock
+        lockKey := fmt.Sprintf("%s%d:%d:%s",
+                constants.SeatLockPrefix,
+                booking.TrainID,
+                booking.SeatID,
+                booking.JourneyDate,
+        )
+        redisClient.Client.Del(redisClient.Ctx, lockKey)
+
+        return &amp;dto.CancelResponse{
+                BookingID: req.BookingID,
+                Status:    constants.StatusCancelled,
+                Message:   constants.MsgCancelSuccess,
+        }, nil</span>
+}
+
+// ─── Get bookings by user ──────────────────────
+func (s *Service) GetUserBookings(userID int) ([]Booking, error) <span class="cov0" title="0">{
+        return s.repo.GetBookingsByUser(userID)
+}</span>
+
+// ─── Check if Redis lock exists ────────────────
+func (s *Service) IsSeatLocked(trainID, seatID int, journeyDate string) bool <span class="cov0" title="0">{
+        lockKey := fmt.Sprintf("%s%d:%d:%s",
+                constants.SeatLockPrefix,
+                trainID, seatID, journeyDate,
+        )
+        val, err := redisClient.Client.Get(redisClient.Ctx, lockKey).Result()
+        return err != redis.Nil &amp;&amp; val != ""
+}</span>
+
+// ─── Check if seat is available in DB ─────────
+func (s *Service) IsSeatAvailable(seatID int) bool <span class="cov0" title="0">{
+        seat, err := s.repo.GetSeatByID(seatID)
+        if err != nil </span><span class="cov0" title="0">{
+                return false
+        }</span>
+        <span class="cov0" title="0">return seat.IsAvailable</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
