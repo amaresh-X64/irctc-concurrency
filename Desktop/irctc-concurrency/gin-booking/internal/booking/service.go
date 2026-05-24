@@ -10,9 +10,6 @@ import (
 
 	"gin-booking/internal/booking/dto"
 	"gin-booking/internal/constants"
-	redisClient "gin-booking/pkg/redis"
-
-	"github.com/redis/go-redis/v9"
 )
 
 type RepositoryStore interface {
@@ -28,101 +25,115 @@ type RepositoryStore interface {
 }
 
 type Service struct {
-	repo RepositoryStore
-	db   *sql.DB
+	repo   RepositoryStore
+	db     *sql.DB
+	locker *SeatLocker
 }
 
 func NewService(db *sql.DB) *Service {
 	return &Service{
-		repo: NewRepository(db),
-		db:   db,
+		repo:   NewRepository(db),
+		db:     db,
+		locker: NewSeatLocker(),
 	}
 }
 
 func NewServiceWithRepo(repo RepositoryStore, db *sql.DB) *Service {
 	return &Service{
-		repo: repo,
-		db:   db,
+		repo:   repo,
+		db:     db,
+		locker: NewSeatLocker(),
 	}
 }
 
+// ─── BookSeat ─────────────────────────────────────────────────────────────────
+// Concurrency strategy:
+//   1. In-process SeatLocker (sync.Map + sync.Mutex) — first gate, no I/O cost.
+//   2. DB transaction with IsSeatAvailableForDate — second gate, serialised by
+//      Postgres row locking, so concurrent requests from different pods are also
+//      safe once a proper SELECT FOR UPDATE is in place.
 func (s *Service) BookSeat(req dto.BookingRequest) (*dto.BookingResponse, error, bool) {
-
 	lockKey := fmt.Sprintf("%s%d:%d:%s", constants.SeatLockPrefix, req.TrainID, req.SeatID, req.JourneyDate)
 
-	locked, err := redisClient.Client.SetNX(redisClient.Ctx, lockKey, req.UserID, time.Duration(constants.SeatLockTTL)*time.Second).Result()
-	if err != nil {
-		log.Printf(" Redis error: %v", err)
-		return nil, fmt.Errorf("redis error"), false
-	}
-	if !locked {
+	if !s.locker.TryLock(lockKey) {
 		return nil, fmt.Errorf(constants.MsgSeatTaken), true
 	}
-	tx, err := s.db.Begin()
+	defer s.locker.Unlock(lockKey)
 
+	tx, err := s.db.Begin()
 	if err != nil {
-		redisClient.Client.Del(redisClient.Ctx, lockKey)
 		return nil, err, false
 	}
+
 	available, err := s.repo.IsSeatAvailableForDate(req.SeatID, req.JourneyDate)
 	if err != nil || !available {
 		tx.Rollback()
-		redisClient.Client.Del(redisClient.Ctx, lockKey)
 		return nil, fmt.Errorf(constants.MsgSeatTaken), true
 	}
+
 	seat, err := s.repo.GetSeatByID(req.SeatID)
 	if err != nil {
 		tx.Rollback()
-		redisClient.Client.Del(redisClient.Ctx, lockKey)
 		return nil, fmt.Errorf(constants.MsgSeatTaken), true
 	}
 
 	if err := s.repo.LockSeat(req.SeatID, tx); err != nil {
 		tx.Rollback()
-		redisClient.Client.Del(redisClient.Ctx, lockKey)
 		return nil, err, false
 	}
 
 	if err := s.repo.DecrementAvailableSeats(req.TrainID, tx); err != nil {
 		tx.Rollback()
-		redisClient.Client.Del(redisClient.Ctx, lockKey)
 		return nil, err, false
 	}
 
 	bookingID, err := s.repo.CreateBooking(req.UserID, req.TrainID, req.SeatID, req.JourneyDate, constants.StatusConfirmed, tx)
 	if err != nil {
 		tx.Rollback()
-		redisClient.Client.Del(redisClient.Ctx, lockKey)
 		return nil, err, false
 	}
 
 	if err := tx.Commit(); err != nil {
-		redisClient.Client.Del(redisClient.Ctx, lockKey)
 		return nil, err, false
 	}
 
 	log.Printf("Seat %d booked by user %d — booking %d", req.SeatID, req.UserID, bookingID)
 
-	return &dto.BookingResponse{BookingID: bookingID, UserID: req.UserID, TrainID: req.TrainID, SeatID: req.SeatID, SeatNumber: seat.SeatNumber,
-		JourneyDate: req.JourneyDate, Status: constants.StatusConfirmed, BookedAt: time.Now()}, nil, false
+	return &dto.BookingResponse{
+		BookingID:   bookingID,
+		UserID:      req.UserID,
+		TrainID:     req.TrainID,
+		SeatID:      req.SeatID,
+		SeatNumber:  seat.SeatNumber,
+		JourneyDate: req.JourneyDate,
+		Status:      constants.StatusConfirmed,
+		BookedAt:    time.Now(),
+	}, nil, false
 }
 
+// ─── CancelBooking ────────────────────────────────────────────────────────────
+// Errors from UnlockSeat and CancelBooking are now propagated — previously they
+// were silently swallowed, which could leave the seat in a permanently broken state.
 func (s *Service) CancelBooking(req dto.CancelRequest) (*dto.CancelResponse, error) {
 	booking, err := s.repo.GetBookingByID(req.BookingID)
 	if err != nil {
 		return nil, fmt.Errorf(constants.MsgBookingNotFound)
 	}
 
-	s.repo.UnlockSeat(booking.SeatID)
-	s.repo.CancelBooking(req.BookingID)
+	if err := s.repo.UnlockSeat(booking.SeatID); err != nil {
+		return nil, fmt.Errorf("failed to unlock seat: %w", err)
+	}
 
-	lockKey := fmt.Sprintf("%s%d:%d:%s", constants.SeatLockPrefix, booking.TrainID, booking.SeatID, booking.JourneyDate)
-	redisClient.Client.Del(redisClient.Ctx, lockKey)
+	if err := s.repo.CancelBooking(req.BookingID); err != nil {
+		return nil, fmt.Errorf("failed to cancel booking: %w", err)
+	}
 
 	go s.confirmNextWaitlist(booking.TrainID, booking.JourneyDate)
 
 	return &dto.CancelResponse{
-		BookingID: req.BookingID, Status: constants.StatusCancelled, Message: constants.MsgCancelSuccess,
+		BookingID: req.BookingID,
+		Status:    constants.StatusCancelled,
+		Message:   constants.MsgCancelSuccess,
 	}, nil
 }
 
@@ -134,7 +145,7 @@ func (s *Service) confirmNextWaitlist(trainID int, journeyDate string) {
 	url := fmt.Sprintf("%s/api/v1/waitlist/confirm-next?train_id=%d&journey_date=%s", fastapiURL, trainID, journeyDate)
 	resp, err := http.Post(url, "application/json", nil)
 	if err != nil {
-		log.Printf(" Waitlist confirm failed: %v", err)
+		log.Printf("Waitlist confirm failed: %v", err)
 		return
 	}
 	defer resp.Body.Close()
@@ -145,10 +156,10 @@ func (s *Service) GetUserBookings(userID int) ([]Booking, error) {
 	return s.repo.GetBookingsByUser(userID)
 }
 
+// IsSeatLocked checks the in-process locker — replaces the Redis GET.
 func (s *Service) IsSeatLocked(trainID, seatID int, journeyDate string) bool {
 	lockKey := fmt.Sprintf("%s%d:%d:%s", constants.SeatLockPrefix, trainID, seatID, journeyDate)
-	val, err := redisClient.Client.Get(redisClient.Ctx, lockKey).Result()
-	return err != redis.Nil && val != ""
+	return s.locker.IsLocked(lockKey)
 }
 
 func (s *Service) IsSeatAvailableForDate(seatID int, journeyDate string) bool {

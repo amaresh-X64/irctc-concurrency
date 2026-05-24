@@ -7,7 +7,6 @@ import (
 	"gin-booking/internal/booking"
 	"gin-booking/internal/middleware"
 	appdb "gin-booking/pkg/db"
-	appredis "gin-booking/pkg/redis"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,8 +15,6 @@ func main() {
 	cfg := config.Load()
 	db := appdb.Connect(cfg.DatabaseURL)
 	defer db.Close()
-
-	appredis.Connect(cfg.RedisURL)
 
 	r := gin.Default()
 	r.Use(middleware.CORS())
@@ -33,6 +30,6 @@ func main() {
 
 	log.Printf("Gin Booking Service running on port %s", cfg.Port)
 	if err := r.Run(":" + cfg.Port); err != nil {
-		log.Fatalf(" Failed to start server: %v", err)
+		log.Fatalf("Failed to start server: %v", err)
 	}
 }
