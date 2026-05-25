@@ -3,6 +3,11 @@ import { SPRING_URL } from "../constants/constants";
 
 const api = axios.create({ baseURL: SPRING_URL });
 
+api.interceptors.request.use((config) => {
+  const token = sessionStorage.getItem("irctc_token");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 // ─── Process payment ───────────────────────────
 export const processPayment = async (paymentData) => {
   const res = await api.post("/payments", paymentData);

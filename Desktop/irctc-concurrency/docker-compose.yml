@@ -64,16 +64,19 @@ services:
     ports:
       - "8003:8003"
     environment:
+      
       SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
       SERVER_PORT: ${SERVER_PORT}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - irctc_network
     restart: unless-stopped
+    
 
   frontend:
     build:

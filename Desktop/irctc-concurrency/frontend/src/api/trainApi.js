@@ -3,6 +3,14 @@ import { FASTAPI_URL } from "../constants/constants";
 
 const api = axios.create({ baseURL: FASTAPI_URL });
 
+api.interceptors.request.use((config) => {
+  const token = sessionStorage.getItem("irctc_token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // ─── Get all trains ────────────────────────────
 export const getAllTrains = async (journeyDate = null) => {
   const res = await api.get("/trains/", {

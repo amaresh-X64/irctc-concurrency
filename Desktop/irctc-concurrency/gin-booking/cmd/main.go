@@ -24,6 +24,8 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
+	api.Use(middleware.AuthMiddleware()) // 🔒 all booking routes protected
+
 	bookingService := booking.NewService(db)
 	bookingController := booking.NewController(bookingService)
 	bookingController.RegisterRoutes(api)

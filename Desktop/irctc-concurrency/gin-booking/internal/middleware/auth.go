@@ -20,9 +20,18 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			return []byte(constants.JWTSecretKey), nil
-		})
+
+		token, err := jwt.Parse(
+			tokenString,
+			func(token *jwt.Token) (interface{}, error) {
+				// reject anything that isn't HMAC (blocks alg:none, RS256, etc.)
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, jwt.ErrSignatureInvalid
+				}
+				return []byte(constants.JWTSecretKey), nil
+			},
+			jwt.WithValidMethods([]string{constants.JWTAlgorithm}),
+		)
 
 		if err != nil || !token.Valid {
 			helpers.ErrorResponse(c, http.StatusUnauthorized, constants.MsgTokenExpired, nil)
@@ -36,8 +45,8 @@ func AuthMiddleware() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		userID := claims["sub"]
-		c.Set("user_id", userID)
+
+		c.Set("user_id", claims["sub"])
 		c.Next()
 	}
 }

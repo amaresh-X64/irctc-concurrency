@@ -5,7 +5,7 @@ from app.waitlist.controller import router as waitlist_router
 from app.auth.controller import router as auth_router
 from app.constants.constants import APP_NAME, APP_VERSION, API_PREFIX
 
-app = FastAPI(title=APP_NAME, version=APP_VERSION)
+app = FastAPI(title=APP_NAME, version=APP_VERSION ,swagger_ui_parameters={"persistAuthorization": True},)
 
 app.add_middleware(
     CORSMiddleware,

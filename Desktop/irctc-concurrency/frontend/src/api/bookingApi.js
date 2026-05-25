@@ -2,7 +2,11 @@ import axios from "axios";
 import { GIN_URL } from "../constants/constants";
 
 const api = axios.create({ baseURL: GIN_URL });
-
+api.interceptors.request.use((config) => {
+  const token = sessionStorage.getItem("irctc_token");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 // ─── Create booking ────────────────────────────
 export const createBooking = async (bookingData) => {
   const res = await api.post("/bookings/", bookingData);
