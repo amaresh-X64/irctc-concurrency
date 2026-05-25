@@ -3,9 +3,9 @@ services:
     image: postgres:15
     container_name: irctc_postgres
     environment:
-      POSTGRES_DB: irctc_db
-      POSTGRES_USER: irctc_user
-      POSTGRES_PASSWORD: irctc_pass
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -14,22 +14,11 @@ services:
     networks:
       - irctc_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U irctc_user -d irctc_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
-  redis:
-    image: redis:7-alpine
-    container_name: irctc_redis
-    ports:
-      - "6379:6379"
-    networks:
-      - irctc_network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+
   fastapi-trains:
     build:
       context: ./fastapi-trains
@@ -38,18 +27,15 @@ services:
     ports:
       - "8001:8001"
     environment:
-      DATABASE_URL: postgresql://irctc_user:irctc_pass@postgres:5432/irctc_db
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     networks:
       - irctc_network
     restart: unless-stopped
 
-  # ─── Gin — Booking + Concurrency ──────────────
   gin-booking:
     build:
       context: ./gin-booking
@@ -58,21 +44,18 @@ services:
     ports:
       - "8002:8002"
     environment:
-      DATABASE_URL: postgres://irctc_user:irctc_pass@postgres:5432/irctc_db?sslmode=disable
-      REDIS_URL: redis:6379
-      SPRINGBOOT_URL: http://springboot-payment:8003
-      FASTAPI_URL: http://fastapi-trains:8001
-      PORT: "8002"
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      SPRINGBOOT_URL: ${SPRINGBOOT_URL}
+      FASTAPI_URL: ${FASTAPI_URL}
+      PORT: ${PORT}
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     networks:
       - irctc_network
     restart: unless-stopped
 
-  # ─── Spring Boot — Payment + PNR ──────────────
   springboot-payment:
     build:
       context: ./springboot-payment
@@ -81,10 +64,10 @@ services:
     ports:
       - "8003:8003"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/irctc_db
-      SPRING_DATASOURCE_USERNAME: irctc_user
-      SPRING_DATASOURCE_PASSWORD: irctc_pass
-      SERVER_PORT: "8003"
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      SERVER_PORT: ${SERVER_PORT}
     depends_on:
       postgres:
         condition: service_healthy
@@ -92,7 +75,6 @@ services:
       - irctc_network
     restart: unless-stopped
 
-  # ─── React Frontend ────────────────────────────
   frontend:
     build:
       context: ./frontend

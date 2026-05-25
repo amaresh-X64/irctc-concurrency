@@ -1,5 +1,10 @@
 package constants
 
+import (
+	"log"
+	"os"
+)
+
 const (
 	AppName    = "IRCTC Booking Service"
 	AppVersion = "1.0.0"
@@ -29,7 +34,16 @@ const (
 	MsgTokenExpired    = "Session expired, please login again"
 )
 
-const (
-	JWTSecretKey = "irctc_super_secret_key_2024"
-	JWTAlgorithm = "HS256"
-)
+const JWTAlgorithm = "HS256"
+
+// JWTSecretKey is loaded once at startup from the environment.
+// The process exits immediately if the variable is missing — a blank
+// secret is worse than a crash because it silently accepts any token.
+var JWTSecretKey string
+
+func init() {
+	JWTSecretKey = os.Getenv("JWT_SECRET_KEY")
+	if JWTSecretKey == "" {
+		log.Fatal("JWT_SECRET_KEY environment variable is not set")
+	}
+}
