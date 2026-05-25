@@ -53,6 +53,12 @@ func NewServiceWithRepo(repo RepositoryStore, db *sql.DB) *Service {
 //      Postgres row locking, so concurrent requests from different pods are also
 //      safe once a proper SELECT FOR UPDATE is in place.
 func (s *Service) BookSeat(req dto.BookingRequest) (*dto.BookingResponse, error, bool) {
+	
+	journeyDate, err := time.Parse("2006-01-02", req.JourneyDate)
+    if err != nil || journeyDate.Before(time.Now().Truncate(24*time.Hour)) {
+        return nil, fmt.Errorf("invalid or past journey date"), false
+    }
+
 	lockKey := fmt.Sprintf("%s%d:%d:%s", constants.SeatLockPrefix, req.TrainID, req.SeatID, req.JourneyDate)
 
 	if !s.locker.TryLock(lockKey) {
