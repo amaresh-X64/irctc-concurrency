@@ -105,3 +105,9 @@ func (r *Repository) IsSeatAvailableForDate(seatID int, journeyDate string) (boo
 	}
 	return count == 0, nil
 }
+func (r *Repository) GetDepartureTime(trainID int) (string, error) {
+    var departureTime string
+    err := r.db.QueryRow(`
+        SELECT departure_time FROM trains WHERE id = $1`, trainID).Scan(&departureTime)
+    return departureTime, err
+}

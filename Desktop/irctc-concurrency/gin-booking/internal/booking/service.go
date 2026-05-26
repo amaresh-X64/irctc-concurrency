@@ -22,6 +22,7 @@ type RepositoryStore interface {
 	UnlockSeat(seatID int) error
 	GetBookingsByUser(userID int) ([]Booking, error)
 	IsSeatAvailableForDate(seatID int, journeyDate string) (bool, error)
+	GetDepartureTime(trainID int) (string, error)
 }
 
 type Service struct {
@@ -53,7 +54,7 @@ func NewServiceWithRepo(repo RepositoryStore, db *sql.DB) *Service {
 //      Postgres row locking, so concurrent requests from different pods are also
 //      safe once a proper SELECT FOR UPDATE is in place.
 func (s *Service) BookSeat(req dto.BookingRequest) (*dto.BookingResponse, error, bool) {
-	
+
 	journeyDate, err := time.Parse("2006-01-02", req.JourneyDate)
     if err != nil || journeyDate.Before(time.Now().Truncate(24*time.Hour)) {
         return nil, fmt.Errorf("invalid or past journey date"), false
@@ -133,6 +134,18 @@ func (s *Service) CancelBooking(req dto.CancelRequest) (*dto.CancelResponse, err
 	if err := s.repo.CancelBooking(req.BookingID); err != nil {
 		return nil, fmt.Errorf("failed to cancel booking: %w", err)
 	}
+	departureTime, err := s.repo.GetDepartureTime(booking.TrainID)
+    if err == nil {
+        journeyDate, _ := time.Parse("2006-01-02T15:04:05Z", booking.JourneyDate)
+        depTime, _ := time.Parse("15:04:05", departureTime)
+        journeyStart := time.Date(
+            journeyDate.Year(), journeyDate.Month(), journeyDate.Day(),
+            depTime.Hour(), depTime.Minute(), depTime.Second(), 0, time.Local,
+        )
+        if time.Now().After(journeyStart) {
+            return nil, fmt.Errorf("cannot cancel after journey has started")
+        }
+    }
 
 	go s.confirmNextWaitlist(booking.TrainID, booking.JourneyDate)
 

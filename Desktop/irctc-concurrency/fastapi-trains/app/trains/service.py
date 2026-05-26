@@ -3,17 +3,12 @@ from app.trains.repository import TrainRepository
 from app.constants.constants import MSG_TRAINS_FOUND, MSG_NO_TRAINS, MSG_SEATS_FOUND
 from app.helpers.response import success_response, error_response
 from datetime import date, datetime
-
+import pytz
 class TrainService:
 
     def __init__(self, db: Session):
         self.repo = TrainRepository(db)
 
-    def search_trains(self, source, destination, journey_date):
-        trains = self.repo.find_trains_by_date(source, destination, journey_date)
-        trains = self._filter_departed(trains, journey_date)
-        msg = MSG_TRAINS_FOUND if trains else MSG_NO_TRAINS
-        return success_response(msg, trains)
     def _validate_date(self, journey_date: str):
         try:
             jd = date.fromisoformat(journey_date[:10])
@@ -30,6 +25,15 @@ class TrainService:
         msg = MSG_TRAINS_FOUND if trains else MSG_NO_TRAINS
         return success_response(msg, trains)
 
+    def search_trains(self, source, destination, journey_date):
+        jd = self._validate_date(journey_date)
+        if jd is None or jd < date.today():
+            return error_response("Invalid or past journey date", None)
+        trains = self.repo.find_trains_by_date(source, destination, journey_date)
+        trains = self._filter_departed(trains, journey_date)
+        msg = MSG_TRAINS_FOUND if trains else MSG_NO_TRAINS
+        return success_response(msg, trains)
+
     def get_seats(self, train_id, journey_date):
         train = self.repo.find_by_id(train_id)
         if not train:
@@ -42,8 +46,16 @@ class TrainService:
             jd = date.fromisoformat(journey_date[:10])
         except ValueError:
             return trains
-        # only filter by time if journey is today
         if jd != date.today():
             return trains
-        now = datetime.now().time()
-        return [t for t in trains if t["departure_time"] > str(now)[:8]]
+        ist = pytz.timezone("Asia/Kolkata")
+        now = datetime.now(ist).time()
+        result = []
+        for t in trains:
+            try:
+                dep = datetime.strptime(str(t["departure_time"])[:8], "%H:%M:%S").time()
+                if dep > now:
+                    result.append(t)
+            except Exception:
+                result.append(t)
+        return result
