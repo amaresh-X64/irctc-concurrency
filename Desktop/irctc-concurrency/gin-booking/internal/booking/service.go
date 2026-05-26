@@ -48,17 +48,12 @@ func NewServiceWithRepo(repo RepositoryStore, db *sql.DB) *Service {
 }
 
 // ─── BookSeat ─────────────────────────────────────────────────────────────────
-// Concurrency strategy:
-//   1. In-process SeatLocker (sync.Map + sync.Mutex) — first gate, no I/O cost.
-//   2. DB transaction with IsSeatAvailableForDate — second gate, serialised by
-//      Postgres row locking, so concurrent requests from different pods are also
-//      safe once a proper SELECT FOR UPDATE is in place.
 func (s *Service) BookSeat(req dto.BookingRequest) (*dto.BookingResponse, error, bool) {
 
 	journeyDate, err := time.Parse("2006-01-02", req.JourneyDate)
-    if err != nil || journeyDate.Before(time.Now().Truncate(24*time.Hour)) {
-        return nil, fmt.Errorf("invalid or past journey date"), false
-    }
+	if err != nil || journeyDate.Before(time.Now().Truncate(24*time.Hour)) {
+		return nil, fmt.Errorf("invalid or past journey date"), false
+	}
 
 	lockKey := fmt.Sprintf("%s%d:%d:%s", constants.SeatLockPrefix, req.TrainID, req.SeatID, req.JourneyDate)
 
@@ -119,14 +114,33 @@ func (s *Service) BookSeat(req dto.BookingRequest) (*dto.BookingResponse, error,
 }
 
 // ─── CancelBooking ────────────────────────────────────────────────────────────
-// Errors from UnlockSeat and CancelBooking are now propagated — previously they
-// were silently swallowed, which could leave the seat in a permanently broken state.
+// Guard order: validate → check departure → write to DB.
+// Nothing is mutated before all checks pass.
 func (s *Service) CancelBooking(req dto.CancelRequest) (*dto.CancelResponse, error) {
+	// 1. Fetch the booking — read-only, no side effects.
 	booking, err := s.repo.GetBookingByID(req.BookingID)
 	if err != nil {
 		return nil, fmt.Errorf(constants.MsgBookingNotFound)
 	}
 
+	// 2. Departure check before any writes.
+	//    JourneyDate is stored as DATE (YYYY-MM-DD) by Postgres.
+	departureTime, err := s.repo.GetDepartureTime(booking.TrainID)
+	if err == nil {
+		journeyDate, parseErr := time.Parse("2006-01-02", booking.JourneyDate)
+		depTime, depErr := time.Parse("15:04:05", departureTime)
+		if parseErr == nil && depErr == nil {
+			journeyStart := time.Date(
+				journeyDate.Year(), journeyDate.Month(), journeyDate.Day(),
+				depTime.Hour(), depTime.Minute(), depTime.Second(), 0, time.Local,
+			)
+			if time.Now().After(journeyStart) {
+				return nil, fmt.Errorf("cannot cancel after journey has started")
+			}
+		}
+	}
+
+	// 3. All guards passed — now write.
 	if err := s.repo.UnlockSeat(booking.SeatID); err != nil {
 		return nil, fmt.Errorf("failed to unlock seat: %w", err)
 	}
@@ -134,18 +148,6 @@ func (s *Service) CancelBooking(req dto.CancelRequest) (*dto.CancelResponse, err
 	if err := s.repo.CancelBooking(req.BookingID); err != nil {
 		return nil, fmt.Errorf("failed to cancel booking: %w", err)
 	}
-	departureTime, err := s.repo.GetDepartureTime(booking.TrainID)
-    if err == nil {
-        journeyDate, _ := time.Parse("2006-01-02T15:04:05Z", booking.JourneyDate)
-        depTime, _ := time.Parse("15:04:05", departureTime)
-        journeyStart := time.Date(
-            journeyDate.Year(), journeyDate.Month(), journeyDate.Day(),
-            depTime.Hour(), depTime.Minute(), depTime.Second(), 0, time.Local,
-        )
-        if time.Now().After(journeyStart) {
-            return nil, fmt.Errorf("cannot cancel after journey has started")
-        }
-    }
 
 	go s.confirmNextWaitlist(booking.TrainID, booking.JourneyDate)
 
@@ -175,7 +177,6 @@ func (s *Service) GetUserBookings(userID int) ([]Booking, error) {
 	return s.repo.GetBookingsByUser(userID)
 }
 
-// IsSeatLocked checks the in-process locker — replaces the Redis GET.
 func (s *Service) IsSeatLocked(trainID, seatID int, journeyDate string) bool {
 	lockKey := fmt.Sprintf("%s%d:%d:%s", constants.SeatLockPrefix, trainID, seatID, journeyDate)
 	return s.locker.IsLocked(lockKey)
