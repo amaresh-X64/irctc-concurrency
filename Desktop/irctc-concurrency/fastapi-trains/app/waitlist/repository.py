@@ -37,11 +37,11 @@ class WaitlistRepository:
         self.db.execute(
             text("""
                 INSERT INTO waitlist (user_id, train_id, journey_date, position, status)
-                VALUES (:user_id, :train_id, :journey_date, 
-                    (SELECT COALESCE(MAX(position), 0) + 1 
-                    FROM waitlist 
-                    WHERE train_id = :train_id 
-                    AND journey_date = :journey_date 
+                VALUES (:user_id, :train_id, :journey_date,
+                    (SELECT COALESCE(MAX(position), 0) + 1
+                    FROM waitlist
+                    WHERE train_id = :train_id
+                    AND journey_date = :journey_date
                     AND status = 'WAITING'),'WAITING')
             """),
             {"user_id": user_id, "train_id": train_id, "journey_date": journey_date}
@@ -65,53 +65,75 @@ class WaitlistRepository:
             {"user_id": user_id}
         ).fetchall()
 
-    def get_first_waiting(self, train_id: int, journey_date: str):
-        return self.db.execute(
-            text("""
-                SELECT id, user_id, position
-                FROM waitlist
-                WHERE train_id = :train_id
-                AND journey_date = :journey_date
-                AND status = 'WAITING'
-                ORDER BY position ASC
-                LIMIT 1
-            """),
-            {"train_id": train_id, "journey_date": journey_date}
-        ).fetchone()
+    def confirm_next_atomically(self, train_id: int, journey_date: str):
+        """
+        Atomically promotes the first WAITING entry to CONFIRMED and creates
+        a booking — all inside one serialised transaction.
 
-    def get_available_seat(self, train_id: int, journey_date: str):
-        return self.db.execute(
+        Strategy:
+          1. Lock the top waitlist row with FOR UPDATE SKIP LOCKED so that
+             two concurrent cancel → promote flows cannot both grab the same
+             waitlist entry.
+          2. Lock an available seat with FOR UPDATE SKIP LOCKED so that two
+             concurrent promotions cannot both grab the same seat.
+          3. Insert the booking and update the waitlist row in the same
+             statement block before the transaction commits.
+
+        Returns a dict with the result, or None if nothing was promoted.
+        """
+        result = self.db.execute(
             text("""
-                SELECT s.id, s.seat_number FROM seats s
-                WHERE s.train_id = :train_id
-                AND NOT EXISTS (
-                    SELECT 1 FROM bookings b
-                    WHERE b.seat_id = s.id
-                    AND b.journey_date = :journey_date
-                    AND b.status = 'CONFIRMED'
+                WITH locked_waitlist AS (
+                    SELECT id, user_id, position
+                    FROM waitlist
+                    WHERE train_id  = :train_id
+                      AND journey_date = :journey_date
+                      AND status = 'WAITING'
+                    ORDER BY position ASC
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED
+                ),
+                locked_seat AS (
+                    SELECT s.id AS seat_id, s.seat_number
+                    FROM seats s
+                    WHERE s.train_id = :train_id
+                      AND NOT EXISTS (
+                          SELECT 1 FROM bookings b
+                          WHERE b.seat_id    = s.id
+                            AND b.journey_date = :journey_date
+                            AND b.status = 'CONFIRMED'
+                      )
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED
+                ),
+                new_booking AS (
+                    INSERT INTO bookings (user_id, train_id, seat_id, journey_date, status, booked_at)
+                    SELECT lw.user_id, :train_id, ls.seat_id, :journey_date, 'CONFIRMED', NOW()
+                    FROM locked_waitlist lw, locked_seat ls
+                    RETURNING id AS booking_id, seat_id, user_id
+                ),
+                updated_waitlist AS (
+                    UPDATE waitlist
+                    SET status = 'CONFIRMED'
+                    FROM locked_waitlist lw
+                    WHERE waitlist.id = lw.id
+                    RETURNING waitlist.id AS waitlist_id
                 )
-                LIMIT 1
+                SELECT
+                    nb.booking_id,
+                    nb.user_id,
+                    nb.seat_id,
+                    ls.seat_number,
+                    uw.waitlist_id
+                FROM new_booking nb
+                JOIN locked_seat   ls ON ls.seat_id = nb.seat_id
+                JOIN updated_waitlist uw ON TRUE
             """),
             {"train_id": train_id, "journey_date": journey_date}
         ).fetchone()
 
-    def create_booking(self, user_id: int, train_id: int, seat_id: int, journey_date: str):
-        return self.db.execute(
-            text("""
-                INSERT INTO bookings (user_id, train_id, seat_id, journey_date, status, booked_at)
-                VALUES (:user_id, :train_id, :seat_id, :journey_date, 'CONFIRMED', NOW())
-                RETURNING id
-            """),
-            {"user_id": user_id, "train_id": train_id,
-             "seat_id": seat_id, "journey_date": journey_date}
-        ).fetchone()
-
-    def confirm_waitlist_entry(self, waitlist_id: int):
-        self.db.execute(
-            text("UPDATE waitlist SET status = 'CONFIRMED' WHERE id = :id"),
-            {"id": waitlist_id}
-        )
         self.db.commit()
+        return result
 
     def cleanup_user_waitlist(self, user_id: int, train_id: int, journey_date: str):
         self.db.execute(
