@@ -14,32 +14,26 @@ const Login = () => {
   
 
   const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    try {
-      const res = await login({ email, password });
-      if (res.success) {
-      saveAuth(res.data, res.data.access_token);
-      setAuth(                                    
-    { id: res.data.user_id, 
-      name: res.data.name, 
-      email: res.data.email 
-    },
-    res.data.access_token
-  );
-  navigate("/search");
-}
-
-      else {
-        setError(res.message);
-      }
-    } catch {
-      setError("Invalid email or password");
-    } finally {
-      setLoading(false);
+  e.preventDefault();
+  setLoading(true);
+  setError("");
+  try {
+    const res = await login({ email, password });
+    if (res.success) {
+      saveAuth(
+        { id: res.data.user_id, name: res.data.name, email: res.data.email },
+        res.data.access_token
+      );
+      navigate("/search");
+    } else {
+      setError(res.message);
     }
-  };
+  } catch {
+    setError("Invalid email or password");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const inputStyle = {
     width: "100%", padding: "12px 14px",
