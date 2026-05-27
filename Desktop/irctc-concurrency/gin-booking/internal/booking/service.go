@@ -16,10 +16,13 @@ type RepositoryStore interface {
 	GetSeatByID(seatID int) (*Seat, error)
 	LockSeat(seatID int, tx *sql.Tx) error
 	DecrementAvailableSeats(trainID int, tx *sql.Tx) error
+	IncrementAvailableSeats(trainID int, tx *sql.Tx) error
 	CreateBooking(userID, trainID, seatID int, journeyDate, status string, tx *sql.Tx) (int, error)
 	GetBookingByID(bookingID int) (*Booking, error)
 	CancelBooking(bookingID int) error
 	UnlockSeat(seatID int) error
+	UnlockSeatTx(seatID int, tx *sql.Tx) error
+	DeleteBooking(bookingID int, tx *sql.Tx) error
 	GetBookingsByUser(userID int) ([]Booking, error)
 	IsSeatAvailableForDate(seatID int, journeyDate string) (bool, error)
 	GetDepartureTime(trainID int) (string, error)
@@ -100,6 +103,11 @@ func (s *Service) BookSeat(req dto.BookingRequest) (*dto.BookingResponse, error,
 	}
 
 	log.Printf("Seat %d booked by user %d — booking %d", req.SeatID, req.UserID, bookingID)
+
+	// Start the payment expiry watchdog. If no SUCCESS payment is recorded
+	// within BookingExpirySeconds the booking is hard-deleted and the seat
+	// is returned to the pool automatically.
+	go s.ScheduleExpiryCheck(bookingID, req.TrainID, req.SeatID)
 
 	return &dto.BookingResponse{
 		BookingID:   bookingID,

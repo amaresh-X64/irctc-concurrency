@@ -20,7 +20,12 @@ const (
 
 const (
 	SeatLockPrefix = "seat_lock:"
-	SeatLockTTL    = 300
+	BookingExpirySeconds = 300
+)
+
+const (
+	// PaymentStatusSuccess must match the status string springboot-payment writes.
+	PaymentStatusSuccess = "SUCCESS"
 )
 
 const (
