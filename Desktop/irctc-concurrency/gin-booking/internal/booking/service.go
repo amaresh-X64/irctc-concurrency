@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"gin-booking/internal/booking/dto"
@@ -104,10 +105,11 @@ func (s *Service) BookSeat(req dto.BookingRequest) (*dto.BookingResponse, error,
 
 	log.Printf("Seat %d booked by user %d — booking %d", req.SeatID, req.UserID, bookingID)
 
-	// Start the payment expiry watchdog. If no SUCCESS payment is recorded
-	// within BookingExpirySeconds the booking is hard-deleted and the seat
-	// is returned to the pool automatically.
+	// Start the payment expiry watchdog.
 	go s.ScheduleExpiryCheck(bookingID, req.TrainID, req.SeatID)
+
+	// Refresh available_seats in Elasticsearch asynchronously.
+	go s.syncSeatsToES(req.TrainID)
 
 	return &dto.BookingResponse{
 		BookingID:   bookingID,
@@ -122,17 +124,12 @@ func (s *Service) BookSeat(req dto.BookingRequest) (*dto.BookingResponse, error,
 }
 
 // ─── CancelBooking ────────────────────────────────────────────────────────────
-// Guard order: validate → check departure → write to DB.
-// Nothing is mutated before all checks pass.
 func (s *Service) CancelBooking(req dto.CancelRequest) (*dto.CancelResponse, error) {
-	// 1. Fetch the booking — read-only, no side effects.
 	booking, err := s.repo.GetBookingByID(req.BookingID)
 	if err != nil {
 		return nil, fmt.Errorf(constants.MsgBookingNotFound)
 	}
 
-	// 2. Departure check before any writes.
-	//    JourneyDate is stored as DATE (YYYY-MM-DD) by Postgres.
 	departureTime, err := s.repo.GetDepartureTime(booking.TrainID)
 	if err == nil {
 		journeyDate, parseErr := time.Parse("2006-01-02", booking.JourneyDate)
@@ -148,7 +145,6 @@ func (s *Service) CancelBooking(req dto.CancelRequest) (*dto.CancelResponse, err
 		}
 	}
 
-	// 3. All guards passed — now write.
 	if err := s.repo.UnlockSeat(booking.SeatID); err != nil {
 		return nil, fmt.Errorf("failed to unlock seat: %w", err)
 	}
@@ -159,6 +155,9 @@ func (s *Service) CancelBooking(req dto.CancelRequest) (*dto.CancelResponse, err
 
 	go s.confirmNextWaitlist(booking.TrainID, booking.JourneyDate)
 
+	// Refresh available_seats in Elasticsearch asynchronously.
+	go s.syncSeatsToES(booking.TrainID)
+
 	return &dto.CancelResponse{
 		BookingID: req.BookingID,
 		Status:    constants.StatusCancelled,
@@ -166,6 +165,44 @@ func (s *Service) CancelBooking(req dto.CancelRequest) (*dto.CancelResponse, err
 	}, nil
 }
 
+// ─── syncSeatsToES ────────────────────────────────────────────────────────────
+// Notifies FastAPI trains service to refresh available_seats in Elasticsearch.
+// Always runs in a goroutine — never blocks the booking/cancel path.
+func (s *Service) syncSeatsToES(trainID int) {
+	fastapiURL := os.Getenv("FASTAPI_URL")
+	if fastapiURL == "" {
+		fastapiURL = "http://fastapi-trains:8001"
+	}
+
+	// Only possible when using the concrete *Repository (not a mock)
+	repo, ok := s.repo.(*Repository)
+	if !ok {
+		return
+	}
+	available, err := repo.GetAvailableSeats(trainID)
+	if err != nil {
+		log.Printf("syncSeatsToES: could not read available_seats for train %d: %v", trainID, err)
+		return
+	}
+
+	url := fmt.Sprintf("%s/internal/trains/%d/seats", fastapiURL, trainID)
+	body := fmt.Sprintf(`{"available_seats":%d}`, available)
+	req, err := http.NewRequest(http.MethodPatch, url, strings.NewReader(body))
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("syncSeatsToES: PATCH failed for train %d: %v", trainID, err)
+		return
+	}
+	defer resp.Body.Close()
+	log.Printf("syncSeatsToES: train %d ES seat count updated (available=%d)", trainID, available)
+}
+
+// ─── confirmNextWaitlist ──────────────────────────────────────────────────────
 func (s *Service) confirmNextWaitlist(trainID int, journeyDate string) {
 	fastapiURL := os.Getenv("FASTAPI_URL")
 	if fastapiURL == "" {

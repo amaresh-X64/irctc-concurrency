@@ -19,6 +19,25 @@ services:
       timeout: 5s
       retries: 5
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    container_name: irctc_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    networks:
+      - irctc_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
   fastapi-trains:
     build:
       context: ./fastapi-trains
@@ -29,8 +48,11 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      ELASTICSEARCH_URL: http://elasticsearch:9200
     depends_on:
       postgres:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
     networks:
       - irctc_network
@@ -64,7 +86,6 @@ services:
     ports:
       - "8003:8003"
     environment:
-      
       SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
@@ -76,7 +97,6 @@ services:
     networks:
       - irctc_network
     restart: unless-stopped
-    
 
   frontend:
     build:
@@ -99,6 +119,7 @@ services:
 
 volumes:
   postgres_data:
+  es_data:
 
 networks:
   irctc_network:

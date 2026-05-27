@@ -134,3 +134,8 @@ func (r *Repository) GetDepartureTime(trainID int) (string, error) {
         SELECT departure_time FROM trains WHERE id = $1`, trainID).Scan(&departureTime)
     return departureTime, err
 }
+func (r *Repository) GetAvailableSeats(trainID int) (int, error) {
+	var count int
+	err := r.db.QueryRow(`SELECT available_seats FROM trains WHERE id = $1`, trainID).Scan(&count)
+	return count, err
+}
