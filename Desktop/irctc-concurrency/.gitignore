@@ -1,2 +1,48 @@
-
+# ── Environment ───────────────────────────────────────────────────────────────
 .env
+.env.*
+!.env.example
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+
+# ── Go ────────────────────────────────────────────────────────────────────────
+coverage.out
+coverage.html
+*.test
+/gin-booking/main
+
+# ── Java / Maven ──────────────────────────────────────────────────────────────
+target/
+*.class
+*.jar
+*.war
+.mvn/wrapper/maven-wrapper.jar
+
+# JaCoCo coverage reports
+**/jacoco.exec
+**/jacoco-reports/
+**/site/jacoco/
+
+# ── Node / Frontend ───────────────────────────────────────────────────────────
+node_modules/
+dist/
+.next/
+*.local
+
+# ── IDE / OS ──────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db

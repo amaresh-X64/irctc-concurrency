@@ -60,7 +60,7 @@ def test_find_all_by_date_returns_list_of_dicts():
     repo = make_repo()
     repo.db.execute().fetchall = MagicMock(return_value=[make_row()])
 
-    result = repo.find_all_by_date("2026-05-19")
+    result = repo.find_all_by_date("2027-06-01")
 
     assert len(result) == 1
     assert result[0]["train_number"] == "12345"
@@ -70,7 +70,7 @@ def test_find_all_by_date_returns_list_of_dicts():
 def test_find_all_by_date_returns_empty_when_no_trains():
     repo = make_repo()
     repo.db.execute().fetchall = MagicMock(return_value=[])
-    result = repo.find_all_by_date("2026-05-19")
+    result = repo.find_all_by_date("2027-06-01")
     assert result == []
 
 
@@ -78,7 +78,7 @@ def test_find_trains_by_date_returns_matching_trains():
     repo = make_repo()
     repo.db.execute().fetchall = MagicMock(return_value=[make_row()])
 
-    result = repo.find_trains_by_date("Chennai", "Mumbai", "2026-05-19")
+    result = repo.find_trains_by_date("Chennai", "Mumbai", "2027-06-01")
 
     assert len(result) == 1
     assert result[0]["destination"] == "Mumbai"
@@ -88,7 +88,7 @@ def test_find_trains_by_date_returns_empty_when_no_match():
     repo = make_repo()
     repo.db.execute().fetchall = MagicMock(return_value=[])
 
-    result = repo.find_trains_by_date("Delhi", "Goa", "2026-05-19")
+    result = repo.find_trains_by_date("Delhi", "Goa", "2027-06-01")
 
     assert result == []
 
@@ -97,7 +97,7 @@ def test_find_seats_by_date_returns_available_seats():
     repo = make_repo()
     repo.db.execute().fetchall = MagicMock(return_value=[make_seat_row()])
 
-    result = repo.find_seats_by_date(1, "2026-05-19")
+    result = repo.find_seats_by_date(1, "2027-06-01")
 
     assert len(result) == 1
     assert result[0]["seat_number"] == "S1"
@@ -108,7 +108,7 @@ def test_find_seats_by_date_returns_booked_seat_as_unavailable():
     repo = make_repo()
     repo.db.execute().fetchall = MagicMock(return_value=[make_seat_row({"is_available": False})])
 
-    result = repo.find_seats_by_date(1, "2026-05-19")
+    result = repo.find_seats_by_date(1, "2027-06-01")
 
     assert result[0]["is_available"] is False
 
@@ -117,7 +117,7 @@ def test_find_seats_by_date_returns_empty_when_no_seats():
     repo = make_repo()
     repo.db.execute().fetchall = MagicMock(return_value=[])
 
-    result = repo.find_seats_by_date(1, "2026-05-19")
+    result = repo.find_seats_by_date(1, "2027-06-01")
 
     assert result == []
 

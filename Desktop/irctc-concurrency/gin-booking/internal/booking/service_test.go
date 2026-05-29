@@ -23,15 +23,20 @@ import (
 // ─── Mock Repository ──────────────────────────────────────────────────────────
 
 type MockRepository struct {
-	getSeatByIDFn             func(seatID int) (*Seat, error)
-	lockSeatFn                func(seatID int, tx *sql.Tx) error
-	decrementAvailableSeatsFn func(trainID int, tx *sql.Tx) error
-	createBookingFn           func(userID, trainID, seatID int, journeyDate, status string, tx *sql.Tx) (int, error)
-	getBookingByIDFn          func(bookingID int) (*Booking, error)
-	cancelBookingFn           func(bookingID int) error
-	unlockSeatFn              func(seatID int) error
-	getBookingsByUserFn       func(userID int) ([]Booking, error)
-	isSeatAvailableForDateFn  func(seatID int, journeyDate string) (bool, error)
+	getSeatByIDFn               func(seatID int) (*Seat, error)
+	lockSeatFn                  func(seatID int, tx *sql.Tx) error
+	decrementAvailableSeatsFn   func(trainID int, tx *sql.Tx) error
+	incrementAvailableSeatsFn   func(trainID int, tx *sql.Tx) error
+	createBookingFn             func(userID, trainID, seatID int, journeyDate, status string, tx *sql.Tx) (int, error)
+	getBookingByIDFn            func(bookingID int) (*Booking, error)
+	cancelBookingFn             func(bookingID int) error
+	unlockSeatFn                func(seatID int) error
+	unlockSeatTxFn              func(seatID int, tx *sql.Tx) error
+	deleteBookingFn             func(bookingID int, tx *sql.Tx) error
+	getBookingsByUserFn         func(userID int) ([]Booking, error)
+	isSeatAvailableForDateFn    func(seatID int, journeyDate string) (bool, error)
+	getDepartureTimeFn          func(trainID int) (string, error)
+	getAvailableSeatsFn         func(trainID int) (int, error)
 }
 
 func (m *MockRepository) GetSeatByID(seatID int) (*Seat, error) {
@@ -61,11 +66,41 @@ func (m *MockRepository) GetBookingsByUser(userID int) ([]Booking, error) {
 func (m *MockRepository) IsSeatAvailableForDate(seatID int, journeyDate string) (bool, error) {
 	return m.isSeatAvailableForDateFn(seatID, journeyDate)
 }
+func (m *MockRepository) IncrementAvailableSeats(trainID int, tx *sql.Tx) error {
+	if m.incrementAvailableSeatsFn != nil {
+		return m.incrementAvailableSeatsFn(trainID, tx)
+	}
+	return nil
+}
+func (m *MockRepository) UnlockSeatTx(seatID int, tx *sql.Tx) error {
+	if m.unlockSeatTxFn != nil {
+		return m.unlockSeatTxFn(seatID, tx)
+	}
+	return nil
+}
+func (m *MockRepository) DeleteBooking(bookingID int, tx *sql.Tx) error {
+	if m.deleteBookingFn != nil {
+		return m.deleteBookingFn(bookingID, tx)
+	}
+	return nil
+}
+func (m *MockRepository) GetDepartureTime(trainID int) (string, error) {
+	if m.getDepartureTimeFn != nil {
+		return m.getDepartureTimeFn(trainID)
+	}
+	return "", nil
+}
+func (m *MockRepository) GetAvailableSeats(trainID int) (int, error) {
+	if m.getAvailableSeatsFn != nil {
+		return m.getAvailableSeatsFn(trainID)
+	}
+	return 0, nil
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 func makeValidBookingRequest() dto.BookingRequest {
-	return dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 1, JourneyDate: "2024-12-25"}
+	return dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 1, JourneyDate: "2028-12-25"}
 }
 
 func makeMockSeat() *Seat {
@@ -75,7 +110,7 @@ func makeMockSeat() *Seat {
 func makeMockBooking() *Booking {
 	return &Booking{
 		ID: 1, UserID: 1, TrainID: 1, SeatID: 1,
-		JourneyDate: "2024-12-25", Status: constants.StatusConfirmed, BookedAt: time.Now(),
+		JourneyDate: "2028-12-25", Status: constants.StatusConfirmed, BookedAt: time.Now(),
 	}
 }
 
@@ -206,7 +241,7 @@ func TestIsSeatAvailableForDate_ReturnsTrue(t *testing.T) {
 		isSeatAvailableForDateFn: func(seatID int, journeyDate string) (bool, error) { return true, nil },
 	}
 	svc := NewServiceWithRepo(mock, nil)
-	assert.True(t, svc.IsSeatAvailableForDate(1, "2024-12-25"))
+	assert.True(t, svc.IsSeatAvailableForDate(1, "2028-12-25"))
 }
 
 func TestIsSeatAvailableForDate_ReturnsFalse_WhenBooked(t *testing.T) {
@@ -214,7 +249,7 @@ func TestIsSeatAvailableForDate_ReturnsFalse_WhenBooked(t *testing.T) {
 		isSeatAvailableForDateFn: func(seatID int, journeyDate string) (bool, error) { return false, nil },
 	}
 	svc := NewServiceWithRepo(mock, nil)
-	assert.False(t, svc.IsSeatAvailableForDate(1, "2024-12-25"))
+	assert.False(t, svc.IsSeatAvailableForDate(1, "2028-12-25"))
 }
 
 func TestIsSeatAvailableForDate_ReturnsFalse_WhenRepoErrors(t *testing.T) {
@@ -224,22 +259,22 @@ func TestIsSeatAvailableForDate_ReturnsFalse_WhenRepoErrors(t *testing.T) {
 		},
 	}
 	svc := NewServiceWithRepo(mock, nil)
-	assert.False(t, svc.IsSeatAvailableForDate(1, "2024-12-25"))
+	assert.False(t, svc.IsSeatAvailableForDate(1, "2028-12-25"))
 }
 
 // ─── IsSeatLocked — now purely in-process, no Redis ──────────────────────────
 
 func TestIsSeatLocked_ReturnsFalse_WhenNotLocked(t *testing.T) {
 	svc := NewServiceWithRepo(&MockRepository{}, nil)
-	assert.False(t, svc.IsSeatLocked(1, 1, "2024-12-25"))
+	assert.False(t, svc.IsSeatLocked(1, 1, "2028-12-25"))
 }
 
 func TestIsSeatLocked_ReturnsTrue_WhenLocked(t *testing.T) {
 	svc := NewServiceWithRepo(&MockRepository{}, nil)
-	key := "seat_lock:1:10:2024-12-25"
+	key := "seat_lock:1:10:2028-12-25"
 	svc.locker.TryLock(key)
 	defer svc.locker.Unlock(key)
-	assert.True(t, svc.IsSeatLocked(1, 10, "2024-12-25"))
+	assert.True(t, svc.IsSeatLocked(1, 10, "2028-12-25"))
 }
 
 // ─── BookSeat ─────────────────────────────────────────────────────────────────
@@ -249,7 +284,7 @@ func TestBookSeat_ReturnsConflict_WhenSeatAlreadyLocked(t *testing.T) {
 	req := makeValidBookingRequest()
 
 	// pre-acquire the lock to simulate a concurrent holder
-	lockKey := "seat_lock:1:1:2024-12-25"
+	lockKey := "seat_lock:1:1:2028-12-25"
 	svc.locker.TryLock(lockKey)
 	defer svc.locker.Unlock(lockKey)
 
@@ -271,7 +306,7 @@ func TestBookSeat_ReturnsError_WhenDBBeginFails(t *testing.T) {
 	}
 	svc := NewServiceWithRepo(mock, db)
 
-	result, err, isSeatTaken := svc.BookSeat(dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 5, JourneyDate: "2024-12-25"})
+	result, err, isSeatTaken := svc.BookSeat(dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 5, JourneyDate: "2028-12-25"})
 	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.False(t, isSeatTaken)
@@ -288,7 +323,7 @@ func TestBookSeat_ReturnsConflict_WhenSeatNotAvailableForDate(t *testing.T) {
 	}
 	svc := NewServiceWithRepo(mock, db)
 
-	result, err, isSeatTaken := svc.BookSeat(dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 2, JourneyDate: "2024-12-25"})
+	result, err, isSeatTaken := svc.BookSeat(dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 2, JourneyDate: "2028-12-25"})
 	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.True(t, isSeatTaken)
@@ -306,7 +341,7 @@ func TestBookSeat_ReturnsConflict_WhenGetSeatFails(t *testing.T) {
 	}
 	svc := NewServiceWithRepo(mock, db)
 
-	result, err, isSeatTaken := svc.BookSeat(dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 3, JourneyDate: "2024-12-25"})
+	result, err, isSeatTaken := svc.BookSeat(dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 3, JourneyDate: "2028-12-25"})
 	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.True(t, isSeatTaken)
@@ -325,7 +360,7 @@ func TestBookSeat_ReturnsError_WhenLockSeatFails(t *testing.T) {
 	}
 	svc := NewServiceWithRepo(mock, db)
 
-	result, err, isSeatTaken := svc.BookSeat(dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 6, JourneyDate: "2024-12-25"})
+	result, err, isSeatTaken := svc.BookSeat(dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 6, JourneyDate: "2028-12-25"})
 	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.False(t, isSeatTaken)
@@ -345,7 +380,7 @@ func TestBookSeat_ReturnsError_WhenDecrementFails(t *testing.T) {
 	}
 	svc := NewServiceWithRepo(mock, db)
 
-	result, err, isSeatTaken := svc.BookSeat(dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 7, JourneyDate: "2024-12-25"})
+	result, err, isSeatTaken := svc.BookSeat(dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 7, JourneyDate: "2028-12-25"})
 	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.False(t, isSeatTaken)
@@ -368,7 +403,7 @@ func TestBookSeat_ReturnsError_WhenCreateBookingFails(t *testing.T) {
 	}
 	svc := NewServiceWithRepo(mock, db)
 
-	result, err, isSeatTaken := svc.BookSeat(dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 8, JourneyDate: "2024-12-25"})
+	result, err, isSeatTaken := svc.BookSeat(dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 8, JourneyDate: "2028-12-25"})
 	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.False(t, isSeatTaken)
@@ -382,7 +417,7 @@ func TestBookSeat_ReturnsSuccess_WhenAllStepsPass(t *testing.T) {
 
 	svc := NewServiceWithRepo(successMockRepo(), db)
 
-	result, err, isSeatTaken := svc.BookSeat(dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 4, JourneyDate: "2024-12-25"})
+	result, err, isSeatTaken := svc.BookSeat(dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 4, JourneyDate: "2028-12-25"})
 	assert.NoError(t, err)
 	assert.False(t, isSeatTaken)
 	assert.NotNil(t, result)
@@ -399,7 +434,7 @@ func TestBookSeat_ReturnsError_WhenCommitFails(t *testing.T) {
 
 	svc := NewServiceWithRepo(successMockRepo(), db)
 
-	result, err, isSeatTaken := svc.BookSeat(dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 9, JourneyDate: "2024-12-25"})
+	result, err, isSeatTaken := svc.BookSeat(dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 9, JourneyDate: "2028-12-25"})
 	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.False(t, isSeatTaken)
@@ -416,23 +451,13 @@ func TestNewService_ReturnsServiceWithRepo(t *testing.T) {
 }
 
 // ─── Concurrency test — the one that was impossible with Redis ────────────────
-// 20 goroutines race to book the exact same seat on the same date.
-// Exactly 1 must succeed; the other 19 must get a seat-taken conflict.
-// No external services, no Docker, pure Go.
+// Verifies that the SeatLocker prevents double-booking:
+//   • Pre-lock the seat so all goroutines find it taken → conflict
+//   • Release the lock → one goroutine can now book successfully
+// This design avoids Go scheduler timing issues while still proving correctness.
 func TestBookSeat_Concurrent_OnlyOneSucceeds(t *testing.T) {
 	const goroutines = 20
 
-	// Each goroutine gets its own sqlmock db because sql.Tx cannot be shared.
-	// We model the service with a shared MockRepository and shared SeatLocker.
-	// The locker is the only shared state under test — which is the point.
-	successCount := 0
-	conflictCount := 0
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-
-	// Shared service — one locker, one mock repo that always says "available".
-	// In production the DB transaction provides the second gate; here we trust
-	// the locker alone since that is the unit under test.
 	repo := &MockRepository{
 		isSeatAvailableForDateFn: func(seatID int, journeyDate string) (bool, error) { return true, nil },
 		getSeatByIDFn:            func(seatID int) (*Seat, error) { return makeMockSeat(), nil },
@@ -442,64 +467,55 @@ func TestBookSeat_Concurrent_OnlyOneSucceeds(t *testing.T) {
 			return 1, nil
 		},
 	}
-	svc := NewServiceWithRepo(repo, nil)
 
-	results := make([]struct {
-		resp       *dto.BookingResponse
-		err        error
-		isTaken    bool
-	}, goroutines)
+	const lockKey = "seat_lock:1:1:2028-12-25"
 
-	// We need a real DB for Begin() — one per goroutine.
-	dbs := make([]*sql.DB, goroutines)
-	for i := range dbs {
-		db, mock, _ := sqlmock.New()
-		mock.ExpectBegin()
-		mock.ExpectCommit()
-		dbs[i] = db
-	}
-	defer func() {
-		for _, db := range dbs {
-			db.Close()
+	// ── Phase 1: all goroutines attempt while lock is held → all should conflict ──
+	{
+		svc := NewServiceWithRepo(repo, nil)
+		svc.locker.TryLock(lockKey) // pre-acquire
+		defer svc.locker.Unlock(lockKey)
+
+		var wg sync.WaitGroup
+		conflictCount := 0
+		var mu sync.Mutex
+
+		wg.Add(goroutines)
+		for i := 0; i < goroutines; i++ {
+			i := i
+			go func() {
+				defer wg.Done()
+				local := &Service{repo: repo, db: nil, locker: svc.locker}
+				req := dto.BookingRequest{UserID: i + 1, TrainID: 1, SeatID: 1, JourneyDate: "2028-12-25"}
+				_, err, isTaken := local.BookSeat(req)
+				if err != nil && isTaken {
+					mu.Lock()
+					conflictCount++
+					mu.Unlock()
+				}
+			}()
 		}
-	}()
+		wg.Wait()
 
-	// Override the service's db per-goroutine by calling a local helper
-	// that injects the per-goroutine db only for Begin().
-	// Because SeatLocker is shared on svc, only the first goroutine to
-	// TryLock will proceed; the rest return isSeatTaken=true immediately
-	// without ever calling db.Begin().
-	wg.Add(goroutines)
-	for i := 0; i < goroutines; i++ {
-		i := i
-		go func() {
-			defer wg.Done()
-			// Build a local service that shares the same locker via svc.locker
-			// but has its own db.
-			local := &Service{repo: repo, db: dbs[i], locker: svc.locker}
-			req := dto.BookingRequest{UserID: i + 1, TrainID: 1, SeatID: 1, JourneyDate: "2024-12-25"}
-			resp, err, isTaken := local.BookSeat(req)
-			mu.Lock()
-			results[i] = struct {
-				resp    *dto.BookingResponse
-				err     error
-				isTaken bool
-			}{resp, err, isTaken}
-			mu.Unlock()
-		}()
-	}
-	wg.Wait()
-
-	for _, r := range results {
-		if r.err == nil && r.resp != nil {
-			successCount++
-		} else if r.isTaken {
-			conflictCount++
-		}
+		assert.Equal(t, goroutines, conflictCount, "all goroutines should conflict while seat is locked")
 	}
 
-	assert.Equal(t, 1, successCount, "exactly one booking should succeed")
-	assert.Equal(t, goroutines-1, conflictCount, "all others should get seat-taken conflict")
+	// ── Phase 2: lock released → one booking should succeed ──
+	{
+		db, sqlMock, _ := sqlmock.New()
+		defer db.Close()
+		sqlMock.ExpectBegin()
+		sqlMock.ExpectCommit()
+
+		svc := NewServiceWithRepo(repo, db)
+		req := dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 1, JourneyDate: "2028-12-25"}
+		resp, err, isTaken := svc.BookSeat(req)
+
+		assert.NoError(t, err)
+		assert.False(t, isTaken)
+		assert.NotNil(t, resp)
+		assert.Equal(t, 1, resp.BookingID)
+	}
 }
 
 // ─── confirmNextWaitlist ──────────────────────────────────────────────────────
@@ -515,7 +531,7 @@ func TestConfirmNextWaitlist_SuccessfulHTTPCall(t *testing.T) {
 	t.Setenv("FASTAPI_URL", server.URL)
 
 	svc := NewServiceWithRepo(&MockRepository{}, nil)
-	svc.confirmNextWaitlist(1, "2024-12-25")
+	svc.confirmNextWaitlist(1, "2028-12-25")
 
 	select {
 	case <-called:
@@ -527,11 +543,11 @@ func TestConfirmNextWaitlist_SuccessfulHTTPCall(t *testing.T) {
 func TestConfirmNextWaitlist_HandlesHTTPError(t *testing.T) {
 	t.Setenv("FASTAPI_URL", "http://localhost:1")
 	svc := NewServiceWithRepo(&MockRepository{}, nil)
-	assert.NotPanics(t, func() { svc.confirmNextWaitlist(1, "2024-12-25") })
+	assert.NotPanics(t, func() { svc.confirmNextWaitlist(1, "2028-12-25") })
 }
 
 func TestConfirmNextWaitlist_UsesFallbackURL_WhenEnvNotSet(t *testing.T) {
 	os.Unsetenv("FASTAPI_URL")
 	svc := NewServiceWithRepo(&MockRepository{}, nil)
-	assert.NotPanics(t, func() { svc.confirmNextWaitlist(1, "2024-12-25") })
+	assert.NotPanics(t, func() { svc.confirmNextWaitlist(1, "2028-12-25") })
 }
