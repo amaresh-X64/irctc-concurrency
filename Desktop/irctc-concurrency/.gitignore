@@ -1,48 +1,155 @@
-# ── Environment ───────────────────────────────────────────────────────────────
-.env
-.env.*
-!.env.example
-
-# ── Python ────────────────────────────────────────────────────────────────────
-__pycache__/
-*.py[cod]
-*.pyo
-.pytest_cache/
-.coverage
-htmlcov/
-*.egg-info/
-dist/
-build/
-venv/
-.venv/
-
-# ── Go ────────────────────────────────────────────────────────────────────────
-coverage.out
-coverage.html
-*.test
-/gin-booking/main
-
-# ── Java / Maven ──────────────────────────────────────────────────────────────
+# -----------------
+# Java / Maven
+# -----------------
 target/
+**/target/
 *.class
 *.jar
 *.war
-.mvn/wrapper/maven-wrapper.jar
+*.ear
+*.nar
+*.zip
+*.tar.gz
+hs_err_pid*
+maven-status/
+maven-archiver/
+.classpath
+.project
+.settings/
+/.mvn/wrapper/maven-wrapper.jar
+mvnw
+mvnw.cmd
 
-# JaCoCo coverage reports
-**/jacoco.exec
-**/jacoco-reports/
-**/site/jacoco/
-
-# ── Node / Frontend ───────────────────────────────────────────────────────────
-node_modules/
-dist/
-.next/
-*.local
-
-# ── IDE / OS ──────────────────────────────────────────────────────────────────
+# IntelliJ
 .idea/
-.vscode/
 *.iml
+*.iws
+out/
+
+# Eclipse
+.metadata/
+*.log
+bin/**
+
+# -----------------
+# Go
+# -----------------
+bin/
+obj/
+*.exe
+*.exe~
+*.test
+*.out
+coverage.out
+**/coverage.out
+vendor/
+
+# -----------------
+# Python
+# -----------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+*.egg-info/
+.Python
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+pip-wheel-metadata/
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+coverage.xml
+.coverage
+.coverage.*
+dist/
+build/
+eggs/
+*.egg
+*.egg-info
+wheelhouse/
+pip-log.txt
+requirements.txt.local
+
+# -----------------
+# Node / Vite / React
+# -----------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+dist/
+build/
+/.turbo/
+/.parcel-cache/
+.env
+.env.*.local
+/.pnp.cjs
+
+# -----------------
+# Docker
+# -----------------
+**/docker-compose.override.yml
+docker-compose.override.yml
+docker-compose.*.override.yml
+**/Dockerfile.*
+docker-stack.yml
+
+# -----------------
+# Coverage & reports
+# -----------------
+coverage/
+coverage-reports/
+target/site/jacoco/
+jacoco.exec
+*.lcov
+
+# -----------------
+# Logs
+# -----------------
+logs/
+*.log
+
+# -----------------
+# IDEs & editors
+# -----------------
+.vscode/
+.vscode-test/
+.history/
+
+# Mac / Windows
+# -----------------
 .DS_Store
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# GitHub Actions artifacts
+# -----------------
+/.github/workflows/nodejs-coverage-report/**/coverage-report.json
+
+# Local project specific
+# -----------------
+# Spring Boot
+spring.log
+application*.yml
+application*.properties
+
+# FastAPI virtualenvs and caches
+**/mafia-gateway-service/.venv/
+**/mafia-gateway-service/venv/
+
+# Go build cache
+/.cache/
+
+# Misc
+# -----------------
+*.swp
+*.swo
+*.tmp
+~*
