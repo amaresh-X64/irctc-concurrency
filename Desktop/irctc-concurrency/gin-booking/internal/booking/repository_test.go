@@ -470,3 +470,217 @@ func TestIsSeatAvailableForDate_ShouldReturnError_WhenDatabaseFails(t *testing.T
 	assert.Error(t, err)
 	assert.False(t, available)
 }
+
+// ─── GetDepartureTime ─────────────────────────────────────────────────────────
+
+func TestGetDepartureTime_ShouldReturnTime_WhenTrainExists(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer db.Close()
+
+	repo := booking.NewRepository(db)
+
+	rows := sqlmock.NewRows([]string{"departure_time"}).AddRow("08:30:00")
+	mock.ExpectQuery("SELECT departure_time FROM trains").
+		WithArgs(1).
+		WillReturnRows(rows)
+
+	result, err := repo.GetDepartureTime(1)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "08:30:00", result)
+}
+
+func TestGetDepartureTime_ShouldReturnError_WhenTrainNotFound(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer db.Close()
+
+	repo := booking.NewRepository(db)
+
+	mock.ExpectQuery("SELECT departure_time FROM trains").
+		WithArgs(99).
+		WillReturnError(sql.ErrNoRows)
+
+	_, err = repo.GetDepartureTime(99)
+
+	assert.Error(t, err)
+}
+
+// ─── GetAvailableSeats ────────────────────────────────────────────────────────
+
+func TestGetAvailableSeats_ShouldReturnCount_WhenTrainExists(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer db.Close()
+
+	repo := booking.NewRepository(db)
+
+	rows := sqlmock.NewRows([]string{"available_seats"}).AddRow(42)
+	mock.ExpectQuery("SELECT available_seats FROM trains").
+		WithArgs(1).
+		WillReturnRows(rows)
+
+	count, err := repo.GetAvailableSeats(1)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 42, count)
+}
+
+func TestGetAvailableSeats_ShouldReturnError_WhenDatabaseFails(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer db.Close()
+
+	repo := booking.NewRepository(db)
+
+	mock.ExpectQuery("SELECT available_seats FROM trains").
+		WithArgs(1).
+		WillReturnError(sql.ErrConnDone)
+
+	_, err = repo.GetAvailableSeats(1)
+
+	assert.Error(t, err)
+}
+
+// ─── UnlockSeatTx ─────────────────────────────────────────────────────────────
+
+func TestUnlockSeatTx_ShouldReturnNil_WhenSeatUnlocked(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer db.Close()
+
+	repo := booking.NewRepository(db)
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE seats SET is_available = true").
+		WithArgs(5).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	tx, _ := db.Begin()
+	err = repo.UnlockSeatTx(5, tx)
+	tx.Commit()
+
+	assert.NoError(t, err)
+}
+
+func TestUnlockSeatTx_ShouldReturnError_WhenDatabaseFails(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer db.Close()
+
+	repo := booking.NewRepository(db)
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE seats SET is_available = true").
+		WithArgs(5).
+		WillReturnError(sql.ErrConnDone)
+
+	tx, _ := db.Begin()
+	err = repo.UnlockSeatTx(5, tx)
+
+	assert.Error(t, err)
+}
+
+// ─── DeleteBooking ────────────────────────────────────────────────────────────
+
+func TestDeleteBooking_ShouldReturnNil_WhenBookingDeleted(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer db.Close()
+
+	repo := booking.NewRepository(db)
+
+	mock.ExpectBegin()
+	mock.ExpectExec("DELETE FROM bookings").
+		WithArgs(10).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	tx, _ := db.Begin()
+	err = repo.DeleteBooking(10, tx)
+	tx.Commit()
+
+	assert.NoError(t, err)
+}
+
+func TestDeleteBooking_ShouldReturnError_WhenDatabaseFails(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer db.Close()
+
+	repo := booking.NewRepository(db)
+
+	mock.ExpectBegin()
+	mock.ExpectExec("DELETE FROM bookings").
+		WithArgs(10).
+		WillReturnError(sql.ErrConnDone)
+
+	tx, _ := db.Begin()
+	err = repo.DeleteBooking(10, tx)
+
+	assert.Error(t, err)
+}
+
+// ─── IncrementAvailableSeats ──────────────────────────────────────────────────
+
+func TestIncrementAvailableSeats_ShouldReturnNil_WhenUpdated(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer db.Close()
+
+	repo := booking.NewRepository(db)
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE trains").
+		WithArgs(1).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	tx, _ := db.Begin()
+	err = repo.IncrementAvailableSeats(1, tx)
+	tx.Commit()
+
+	assert.NoError(t, err)
+}
+
+func TestIncrementAvailableSeats_ShouldReturnError_WhenDatabaseFails(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer db.Close()
+
+	repo := booking.NewRepository(db)
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE trains").
+		WithArgs(1).
+		WillReturnError(sql.ErrConnDone)
+
+	tx, _ := db.Begin()
+	err = repo.IncrementAvailableSeats(1, tx)
+
+	assert.Error(t, err)
+}
+
+// ─── GetBookingsByUser — scan error path (the uncovered continue branch) ──────
+
+func TestGetBookingsByUser_ShouldSkipRow_WhenScanFails(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer db.Close()
+
+	repo := booking.NewRepository(db)
+
+	// Return a row with wrong column count so Scan fails → hits the continue branch
+	rows := sqlmock.NewRows([]string{"id"}).AddRow(1)
+	mock.ExpectQuery("SELECT b.id").
+		WithArgs(1).
+		WillReturnRows(rows)
+
+	bookings, err := repo.GetBookingsByUser(1)
+
+	// No error returned — bad rows are silently skipped
+	assert.NoError(t, err)
+	assert.Empty(t, bookings)
+}
