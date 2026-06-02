@@ -16,10 +16,7 @@ from app.search.elastic import (
 )
 
 
-# ─── helpers ──────────────────────────────────────────────────────────────────
-
 def make_client():
-    """Return a MagicMock that looks like an Elasticsearch client."""
     return MagicMock()
 
 
@@ -37,7 +34,6 @@ SAMPLE_TRAIN = {
 }
 
 
-# ─── get_es_client ────────────────────────────────────────────────────────────
 
 def test_get_es_client_returns_client_when_ping_succeeds():
     with patch("app.search.elastic.Elasticsearch") as MockES:
@@ -71,7 +67,6 @@ def test_get_es_client_returns_none_when_exception_raised():
 
 
 def test_get_es_client_uses_env_url():
-    # ELASTIC_URL is set at module import time, so patch the module-level var directly
     with patch("app.search.elastic.ELASTIC_URL", "http://custom-es:9300"), \
          patch("app.search.elastic.Elasticsearch") as MockES:
         mock_instance = MagicMock()
@@ -95,7 +90,6 @@ def test_get_es_client_uses_default_url_when_env_not_set():
         MockES.assert_called_once_with("http://elasticsearch:9200", request_timeout=3)
 
 
-# ─── ensure_index ─────────────────────────────────────────────────────────────
 
 def test_ensure_index_creates_index_when_not_exists():
     client = make_client()
@@ -127,7 +121,6 @@ def test_ensure_index_checks_correct_index_name():
     assert INDEX_NAME == "trains"
 
 
-# ─── index_train ──────────────────────────────────────────────────────────────
 
 def test_index_train_calls_client_index_with_correct_args():
     client = make_client()
@@ -151,7 +144,6 @@ def test_index_train_uses_train_id_as_document_id():
     assert kwargs["id"] == 42
 
 
-# ─── bulk_index_trains ────────────────────────────────────────────────────────
 
 def test_bulk_index_trains_does_nothing_when_list_is_empty():
     client = make_client()
@@ -174,7 +166,6 @@ def test_bulk_index_trains_calls_bulk_with_action_pairs():
     _, kwargs = client.bulk.call_args
     ops = kwargs["operations"]
 
-    # Each train produces 2 entries: action dict + document dict
     assert len(ops) == 4
     assert ops[0] == {"index": {"_index": INDEX_NAME, "_id": 1}}
     assert ops[1] == trains[0]
@@ -201,7 +192,6 @@ def test_bulk_index_trains_single_train():
     assert len(ops) == 2
 
 
-# ─── update_available_seats ───────────────────────────────────────────────────
 
 def test_update_available_seats_calls_update_with_correct_args():
     client = make_client()
@@ -217,14 +207,12 @@ def test_update_available_seats_calls_update_with_correct_args():
 
 def test_update_available_seats_handles_not_found_gracefully():
     client = make_client()
-    # NotFoundError requires (message, meta, body) args
     meta = MagicMock()
     meta.status = 404
     client.update.side_effect = NotFoundError(
         message="not found", meta=meta, body={}
     )
 
-    # Should not raise
     update_available_seats(client, train_id=999, available_seats=10)
 
 
@@ -237,7 +225,6 @@ def test_update_available_seats_sets_zero_seats():
     assert kwargs["doc"] == {"available_seats": 0}
 
 
-# ─── search_trains ────────────────────────────────────────────────────────────
 
 def make_search_response(sources: list[dict]) -> dict:
     return {"hits": {"hits": [{"_source": s} for s in sources]}}
@@ -327,8 +314,6 @@ def test_search_trains_uses_correct_index():
     _, kwargs = client.search.call_args
     assert kwargs["index"] == INDEX_NAME
 
-
-# ─── search_all_trains ────────────────────────────────────────────────────────
 
 def test_search_all_trains_returns_all_sources():
     client = make_client()

@@ -22,14 +22,8 @@ class TrainService:
             return None
         return jd
 
-    # ── Startup indexing ────────────────────────────────────────────────────
     @staticmethod
     def bootstrap_es_index(db: Session) -> None:
-        """
-        Called once at app startup. Fetches all trains from Postgres and
-        bulk-indexes them into Elasticsearch. Safe to call repeatedly —
-        it is a no-op if ES is unreachable.
-        """
         client = es_client.get_es_client()
         if client is None:
             logger.warning("ES unavailable at startup — skipping index bootstrap")
@@ -37,14 +31,11 @@ class TrainService:
         try:
             es_client.ensure_index(client)
             repo = TrainRepository(db)
-            # Seed with today's date just to get the full train list;
-            # available_seats here is a point-in-time snapshot.
             trains = repo.find_all_by_date(str(date.today()))
             es_client.bulk_index_trains(client, trains)
         except Exception as exc:
             logger.error("ES bootstrap failed: %s", exc)
 
-    # ── Public API ──────────────────────────────────────────────────────────
     def get_all_trains(self, journey_date: str):
         jd = self._validate_date(journey_date)
         if jd is None or jd < date.today():
@@ -72,12 +63,7 @@ class TrainService:
         seats = self.repo.find_seats_by_date(train_id, journey_date)
         return success_response(MSG_SEATS_FOUND, seats)
 
-    # ── Internal helpers ────────────────────────────────────────────────────
     def _get_all_trains_with_live_seats(self, journey_date: str) -> list[dict]:
-        """
-        Try ES for the train list, but always fetch live available_seats
-        from Postgres so the count reflects real-time bookings.
-        """
         client = es_client.get_es_client()
         if client is not None:
             try:
@@ -92,17 +78,12 @@ class TrainService:
     def _search_with_live_seats(
         self, source: str, destination: str, journey_date: str
     ) -> list[dict]:
-        """
-        ES provides fuzzy/typo-tolerant matching; Postgres provides the
-        live available_seats count.  Falls back to Postgres-only on error.
-        """
         client = es_client.get_es_client()
         if client is not None:
             try:
                 es_trains = es_client.search_trains(client, source, destination)
                 if es_trains:
                     return self._patch_available_seats(es_trains, journey_date)
-                # ES returned empty — could be a genuine no-result, return it
                 return []
             except Exception as exc:
                 logger.warning("ES search failed (%s) — falling back to Postgres", exc)
@@ -112,11 +93,7 @@ class TrainService:
     def _patch_available_seats(
         self, es_trains: list[dict], journey_date: str
     ) -> list[dict]:
-        """
-        ES documents hold a stale available_seats snapshot.
-        Overwrite it with live counts from Postgres for the requested date.
-        """
-        # One DB call to get live counts for ALL trains on this date
+        
         live_trains = self.repo.find_all_by_date(journey_date)
         live_seats_map = {t["id"]: t["available_seats"] for t in live_trains}
 

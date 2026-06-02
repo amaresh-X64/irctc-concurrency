@@ -66,21 +66,6 @@ class WaitlistRepository:
         ).fetchall()
 
     def confirm_next_atomically(self, train_id: int, journey_date: str):
-        """
-        Atomically promotes the first WAITING entry to CONFIRMED and creates
-        a booking — all inside one serialised transaction.
-
-        Strategy:
-          1. Lock the top waitlist row with FOR UPDATE SKIP LOCKED so that
-             two concurrent cancel → promote flows cannot both grab the same
-             waitlist entry.
-          2. Lock an available seat with FOR UPDATE SKIP LOCKED so that two
-             concurrent promotions cannot both grab the same seat.
-          3. Insert the booking and update the waitlist row in the same
-             statement block before the transaction commits.
-
-        Returns a dict with the result, or None if nothing was promoted.
-        """
         result = self.db.execute(
             text("""
                 WITH locked_waitlist AS (

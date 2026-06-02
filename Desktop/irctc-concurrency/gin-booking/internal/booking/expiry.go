@@ -11,19 +11,12 @@ import (
 	"gin-booking/internal/constants"
 )
 
-// paymentCheckResponse mirrors the shape springboot-payment returns for
-// GET /api/v1/payments/booking/{bookingId}
 type paymentCheckResponse struct {
 	Data struct {
 		Status string `json:"status"`
 	} `json:"data"`
 }
 
-// ScheduleExpiryCheck fires once after BookingExpirySeconds. It calls the
-// payment service; if no SUCCESS payment exists the booking is hard-deleted
-// and the seat + train counter are restored.
-//
-// Called as a goroutine immediately after a successful BookSeat commit.
 func (s *Service) ScheduleExpiryCheck(bookingID, trainID, seatID int) {
 	ttl := time.Duration(constants.BookingExpirySeconds) * time.Second
 	log.Printf("[expiry] booking %d — will check in %v", bookingID, ttl)
@@ -39,8 +32,6 @@ func (s *Service) ScheduleExpiryCheck(bookingID, trainID, seatID int) {
 	s.purgeUnpaidBooking(bookingID, trainID, seatID)
 }
 
-// isPaid returns true only when the payment service reports status SUCCESS.
-// Any network error, 404, or non-SUCCESS status is treated as "not paid".
 func (s *Service) isPaid(bookingID int) bool {
 	paymentURL := os.Getenv("SPRINGBOOT_URL")
 
@@ -54,7 +45,6 @@ func (s *Service) isPaid(bookingID int) bool {
 	}
 	defer resp.Body.Close()
 
-	// 404 → no payment record at all
 	if resp.StatusCode == http.StatusNotFound {
 		return false
 	}
@@ -72,8 +62,6 @@ func (s *Service) isPaid(bookingID int) bool {
 	return result.Data.Status == constants.PaymentStatusSuccess
 }
 
-// purgeUnpaidBooking deletes the booking row, resets the seat to available,
-// and increments the train's available_seats counter — all in one transaction.
 func (s *Service) purgeUnpaidBooking(bookingID, trainID, seatID int) {
 	tx, err := s.db.Begin()
 	if err != nil {

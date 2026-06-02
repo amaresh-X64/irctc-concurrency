@@ -61,10 +61,6 @@ class WaitlistService:
         return success_response("Waitlist fetched", data)
 
     def confirm_next_waitlist(self, train_id: int, journey_date: str):
-        """
-        Delegates entirely to the repository's atomic CTE.
-        No seat is double-booked even under concurrent cancellations.
-        """
         row = self.repo.confirm_next_atomically(train_id, journey_date)
 
         if row is None:
@@ -77,8 +73,6 @@ class WaitlistService:
             "seat_number": row.seat_number,
             "waitlist_id": row.waitlist_id,
         })
-
-    # ── helpers ──────────────────────────────────────────────────────────────
 
     def _get_probability(self, position: int) -> float:
         if position <= 5:

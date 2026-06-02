@@ -51,7 +51,6 @@ func NewServiceWithRepo(repo RepositoryStore, db *sql.DB) *Service {
 	}
 }
 
-// ─── BookSeat ─────────────────────────────────────────────────────────────────
 func (s *Service) BookSeat(req dto.BookingRequest) (*dto.BookingResponse, error, bool) {
 
 	journeyDate, err := time.Parse("2006-01-02", req.JourneyDate)
@@ -104,11 +103,8 @@ func (s *Service) BookSeat(req dto.BookingRequest) (*dto.BookingResponse, error,
 	}
 
 	log.Printf("Seat %d booked by user %d — booking %d", req.SeatID, req.UserID, bookingID)
-
-	// Start the payment expiry watchdog.
 	go s.ScheduleExpiryCheck(bookingID, req.TrainID, req.SeatID)
 
-	// Refresh available_seats in Elasticsearch asynchronously.
 	go s.syncSeatsToES(req.TrainID)
 
 	return &dto.BookingResponse{
@@ -123,7 +119,6 @@ func (s *Service) BookSeat(req dto.BookingRequest) (*dto.BookingResponse, error,
 	}, nil, false
 }
 
-// ─── CancelBooking ────────────────────────────────────────────────────────────
 func (s *Service) CancelBooking(req dto.CancelRequest) (*dto.CancelResponse, error) {
 	booking, err := s.repo.GetBookingByID(req.BookingID)
 	if err != nil {
@@ -155,7 +150,6 @@ func (s *Service) CancelBooking(req dto.CancelRequest) (*dto.CancelResponse, err
 
 	go s.confirmNextWaitlist(booking.TrainID, booking.JourneyDate)
 
-	// Refresh available_seats in Elasticsearch asynchronously.
 	go s.syncSeatsToES(booking.TrainID)
 
 	return &dto.CancelResponse{
@@ -164,17 +158,11 @@ func (s *Service) CancelBooking(req dto.CancelRequest) (*dto.CancelResponse, err
 		Message:   constants.MsgCancelSuccess,
 	}, nil
 }
-
-// ─── syncSeatsToES ────────────────────────────────────────────────────────────
-// Notifies FastAPI trains service to refresh available_seats in Elasticsearch.
-// Always runs in a goroutine — never blocks the booking/cancel path.
 func (s *Service) syncSeatsToES(trainID int) {
 	fastapiURL := os.Getenv("FASTAPI_URL")
 	if fastapiURL == "" {
 		fastapiURL = "http://fastapi-trains:8001"
 	}
-
-	// Only possible when using the concrete *Repository (not a mock)
 	repo, ok := s.repo.(*Repository)
 	if !ok {
 		return
@@ -202,7 +190,6 @@ func (s *Service) syncSeatsToES(trainID int) {
 	log.Printf("syncSeatsToES: train %d ES seat count updated (available=%d)", trainID, available)
 }
 
-// ─── confirmNextWaitlist ──────────────────────────────────────────────────────
 func (s *Service) confirmNextWaitlist(trainID int, journeyDate string) {
 	fastapiURL := os.Getenv("FASTAPI_URL")
 	if fastapiURL == "" {

@@ -1,7 +1,5 @@
 package booking
 
-// White-box test: same package as controller so we can build the router directly.
-
 import (
 	"bytes"
 	"encoding/json"
@@ -16,14 +14,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// ─── mock service ─────────────────────────────────────────────────────────────
-
 type mockBookingService struct {
-	bookSeatFn              func(req dto.BookingRequest) (*dto.BookingResponse, error, bool)
-	cancelBookingFn         func(req dto.CancelRequest) (*dto.CancelResponse, error)
-	getUserBookingsFn       func(userID int) ([]Booking, error)
-	isSeatLockedFn          func(trainID, seatID int, journeyDate string) bool
-	isSeatAvailableForDate  func(seatID int, journeyDate string) bool
+	bookSeatFn             func(req dto.BookingRequest) (*dto.BookingResponse, error, bool)
+	cancelBookingFn        func(req dto.CancelRequest) (*dto.CancelResponse, error)
+	getUserBookingsFn      func(userID int) ([]Booking, error)
+	isSeatLockedFn         func(trainID, seatID int, journeyDate string) bool
+	isSeatAvailableForDate func(seatID int, journeyDate string) bool
 }
 
 func (m *mockBookingService) BookSeat(req dto.BookingRequest) (*dto.BookingResponse, error, bool) {
@@ -42,8 +38,6 @@ func (m *mockBookingService) IsSeatAvailableForDate(seatID int, journeyDate stri
 	return m.isSeatAvailableForDate(seatID, journeyDate)
 }
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
-
 func setupRouter(svc BookingService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -56,8 +50,6 @@ func toJSON(v any) *bytes.Buffer {
 	b, _ := json.Marshal(v)
 	return bytes.NewBuffer(b)
 }
-
-// ─── CreateBooking ────────────────────────────────────────────────────────────
 
 func TestCreateBooking_Returns201_WhenSuccessful(t *testing.T) {
 	svc := &mockBookingService{
@@ -122,8 +114,6 @@ func TestCreateBooking_Returns400_WhenBadJSON(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-// ─── CancelBooking ────────────────────────────────────────────────────────────
-
 func TestCancelBooking_Returns200_WhenSuccessful(t *testing.T) {
 	svc := &mockBookingService{
 		cancelBookingFn: func(req dto.CancelRequest) (*dto.CancelResponse, error) {
@@ -170,8 +160,6 @@ func TestCancelBooking_Returns400_WhenBadJSON(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-// ─── GetUserBookings ──────────────────────────────────────────────────────────
-
 func TestGetUserBookings_Returns200_WithBookings(t *testing.T) {
 	svc := &mockBookingService{
 		getUserBookingsFn: func(userID int) ([]Booking, error) {
@@ -212,8 +200,6 @@ func TestGetUserBookings_Returns400_WhenUserIDInvalid(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
-
-// ─── CheckSeatStatus ─────────────────────────────────────────────────────────
 
 func TestCheckSeatStatus_Returns200_WithLockedAndAvailableStatus(t *testing.T) {
 	svc := &mockBookingService{

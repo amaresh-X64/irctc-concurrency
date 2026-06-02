@@ -1,8 +1,5 @@
 package booking
 
-// White-box tests for expiry.go — isPaid and purgeUnpaidBooking.
-// Both are unexported so we stay in the booking package.
-
 import (
 	"database/sql"
 	"net/http"
@@ -12,8 +9,6 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 )
-
-// ─── isPaid ───────────────────────────────────────────────────────────────────
 
 func TestIsPaid_ReturnsFalse_WhenPaymentServiceUnreachable(t *testing.T) {
 	svc := &Service{}
@@ -99,16 +94,14 @@ func TestIsPaid_ReturnsFalse_WhenPaymentReturnsNon200NonSuccess(t *testing.T) {
 	assert.False(t, result)
 }
 
-// ─── purgeUnpaidBooking ───────────────────────────────────────────────────────
-
 func TestPurgeUnpaidBooking_CommitsSuccessfully_WhenAllStepsPass(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
 	defer db.Close()
 
 	repo := &MockRepository{
-		deleteBookingFn:          func(bookingID int, tx *sql.Tx) error { return nil },
-		unlockSeatTxFn:           func(seatID int, tx *sql.Tx) error { return nil },
+		deleteBookingFn:           func(bookingID int, tx *sql.Tx) error { return nil },
+		unlockSeatTxFn:            func(seatID int, tx *sql.Tx) error { return nil },
 		incrementAvailableSeatsFn: func(trainID int, tx *sql.Tx) error { return nil },
 	}
 
@@ -166,8 +159,8 @@ func TestPurgeUnpaidBooking_Rollsback_WhenIncrementFails(t *testing.T) {
 	defer db.Close()
 
 	repo := &MockRepository{
-		deleteBookingFn:          func(bookingID int, tx *sql.Tx) error { return nil },
-		unlockSeatTxFn:           func(seatID int, tx *sql.Tx) error { return nil },
+		deleteBookingFn:           func(bookingID int, tx *sql.Tx) error { return nil },
+		unlockSeatTxFn:            func(seatID int, tx *sql.Tx) error { return nil },
 		incrementAvailableSeatsFn: func(trainID int, tx *sql.Tx) error { return sql.ErrConnDone },
 	}
 

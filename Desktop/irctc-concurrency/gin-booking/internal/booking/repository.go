@@ -69,21 +69,16 @@ func (r *Repository) UnlockSeat(seatID int) error {
 	return err
 }
 
-// UnlockSeatTx resets is_available inside an existing transaction.
-// Used by the expiry purge so seat + booking + seat-count are one atomic op.
 func (r *Repository) UnlockSeatTx(seatID int, tx *sql.Tx) error {
 	_, err := tx.Exec(`UPDATE seats SET is_available = true WHERE id = $1`, seatID)
 	return err
 }
 
-// DeleteBooking hard-deletes the booking row inside an existing transaction.
-// We never keep unpaid bookings — the seat simply goes back to the pool.
 func (r *Repository) DeleteBooking(bookingID int, tx *sql.Tx) error {
 	_, err := tx.Exec(`DELETE FROM bookings WHERE id = $1`, bookingID)
 	return err
 }
 
-// IncrementAvailableSeats reverses the decrement done at booking time.
 func (r *Repository) IncrementAvailableSeats(trainID int, tx *sql.Tx) error {
 	_, err := tx.Exec(`
 		UPDATE trains
@@ -129,10 +124,10 @@ func (r *Repository) IsSeatAvailableForDate(seatID int, journeyDate string) (boo
 	return count == 0, nil
 }
 func (r *Repository) GetDepartureTime(trainID int) (string, error) {
-    var departureTime string
-    err := r.db.QueryRow(`
+	var departureTime string
+	err := r.db.QueryRow(`
         SELECT departure_time FROM trains WHERE id = $1`, trainID).Scan(&departureTime)
-    return departureTime, err
+	return departureTime, err
 }
 func (r *Repository) GetAvailableSeats(trainID int) (int, error) {
 	var count int

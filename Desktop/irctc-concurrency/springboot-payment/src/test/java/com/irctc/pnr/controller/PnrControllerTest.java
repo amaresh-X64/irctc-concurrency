@@ -18,13 +18,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(
-    controllers = PnrController.class,
-    excludeFilters = @ComponentScan.Filter(
-        type = FilterType.ASSIGNABLE_TYPE,
-        classes = com.irctc.middleware.JwtAuthFilter.class
-    )
-)
+@WebMvcTest(controllers = PnrController.class, excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = com.irctc.middleware.JwtAuthFilter.class))
 class PnrControllerTest {
 
     @Autowired
@@ -32,8 +26,6 @@ class PnrControllerTest {
 
     @MockBean
     private PnrService pnrService;
-
-    // ─── helper ───────────────────────────────────────────────────────────────
 
     private Pnr makePnr() {
         Pnr pnr = new Pnr();
@@ -47,8 +39,6 @@ class PnrControllerTest {
         pnr.setGeneratedAt(LocalDateTime.now());
         return pnr;
     }
-
-    // ─── GET /api/v1/pnr/{pnrNumber} ─────────────────────────────────────────
 
     @Test
     void getPnr_Returns200_WhenPnrExists() throws Exception {
@@ -89,8 +79,6 @@ class PnrControllerTest {
                 .andExpect(jsonPath("$.data.userId").value(3));
     }
 
-    // ─── GET /api/v1/pnr/booking/{bookingId} ──────────────────────────────────
-
     @Test
     void getPnrByBooking_Returns200_WhenPnrExists() throws Exception {
         when(pnrService.getPnrByBookingId(10)).thenReturn(makePnr());
@@ -128,4 +116,4 @@ class PnrControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.journeyDate").value("2028-12-25"));
     }
-} 
+}

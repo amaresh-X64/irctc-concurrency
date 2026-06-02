@@ -2,9 +2,6 @@ package booking
 
 import "sync"
 
-// SeatLocker is an in-process, goroutine-safe lock map.
-// Each key is "trainID:seatID:journeyDate".
-// TryLock returns true only if the key was not already held.
 type SeatLocker struct {
 	mu    sync.Mutex
 	locks map[string]struct{}

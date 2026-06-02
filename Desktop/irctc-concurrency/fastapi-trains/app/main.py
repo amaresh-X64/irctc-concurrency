@@ -24,13 +24,12 @@ app.add_middleware(
 
 app.include_router(auth_router,             prefix=API_PREFIX)
 app.include_router(trains_router,           prefix=API_PREFIX)
-app.include_router(trains_internal_router)          # no API_PREFIX — internal only
+app.include_router(trains_internal_router)
 app.include_router(waitlist_router,         prefix=API_PREFIX)
 
 
 @app.on_event("startup")  
 def startup_event():
-    """Bulk-index all trains into Elasticsearch on service startup."""
     db = SessionLocal()
     try:
         TrainService.bootstrap_es_index(db)

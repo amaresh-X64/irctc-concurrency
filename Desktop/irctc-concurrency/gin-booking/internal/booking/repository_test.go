@@ -471,8 +471,6 @@ func TestIsSeatAvailableForDate_ShouldReturnError_WhenDatabaseFails(t *testing.T
 	assert.False(t, available)
 }
 
-// ─── GetDepartureTime ─────────────────────────────────────────────────────────
-
 func TestGetDepartureTime_ShouldReturnTime_WhenTrainExists(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
@@ -507,8 +505,6 @@ func TestGetDepartureTime_ShouldReturnError_WhenTrainNotFound(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// ─── GetAvailableSeats ────────────────────────────────────────────────────────
-
 func TestGetAvailableSeats_ShouldReturnCount_WhenTrainExists(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
@@ -542,8 +538,6 @@ func TestGetAvailableSeats_ShouldReturnError_WhenDatabaseFails(t *testing.T) {
 
 	assert.Error(t, err)
 }
-
-// ─── UnlockSeatTx ─────────────────────────────────────────────────────────────
 
 func TestUnlockSeatTx_ShouldReturnNil_WhenSeatUnlocked(t *testing.T) {
 	db, mock, err := sqlmock.New()
@@ -583,8 +577,6 @@ func TestUnlockSeatTx_ShouldReturnError_WhenDatabaseFails(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// ─── DeleteBooking ────────────────────────────────────────────────────────────
-
 func TestDeleteBooking_ShouldReturnNil_WhenBookingDeleted(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
@@ -623,8 +615,6 @@ func TestDeleteBooking_ShouldReturnError_WhenDatabaseFails(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// ─── IncrementAvailableSeats ──────────────────────────────────────────────────
-
 func TestIncrementAvailableSeats_ShouldReturnNil_WhenUpdated(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
@@ -662,8 +652,6 @@ func TestIncrementAvailableSeats_ShouldReturnError_WhenDatabaseFails(t *testing.
 
 	assert.Error(t, err)
 }
-
-// ─── GetBookingsByUser — scan error path (the uncovered continue branch) ──────
 
 func TestGetBookingsByUser_ShouldSkipRow_WhenScanFails(t *testing.T) {
 	db, mock, err := sqlmock.New()

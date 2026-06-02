@@ -18,25 +18,21 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// ─── No TestMain needed — zero external dependencies ──────────────────────────
-
-// ─── Mock Repository ──────────────────────────────────────────────────────────
-
 type MockRepository struct {
-	getSeatByIDFn               func(seatID int) (*Seat, error)
-	lockSeatFn                  func(seatID int, tx *sql.Tx) error
-	decrementAvailableSeatsFn   func(trainID int, tx *sql.Tx) error
-	incrementAvailableSeatsFn   func(trainID int, tx *sql.Tx) error
-	createBookingFn             func(userID, trainID, seatID int, journeyDate, status string, tx *sql.Tx) (int, error)
-	getBookingByIDFn            func(bookingID int) (*Booking, error)
-	cancelBookingFn             func(bookingID int) error
-	unlockSeatFn                func(seatID int) error
-	unlockSeatTxFn              func(seatID int, tx *sql.Tx) error
-	deleteBookingFn             func(bookingID int, tx *sql.Tx) error
-	getBookingsByUserFn         func(userID int) ([]Booking, error)
-	isSeatAvailableForDateFn    func(seatID int, journeyDate string) (bool, error)
-	getDepartureTimeFn          func(trainID int) (string, error)
-	getAvailableSeatsFn         func(trainID int) (int, error)
+	getSeatByIDFn             func(seatID int) (*Seat, error)
+	lockSeatFn                func(seatID int, tx *sql.Tx) error
+	decrementAvailableSeatsFn func(trainID int, tx *sql.Tx) error
+	incrementAvailableSeatsFn func(trainID int, tx *sql.Tx) error
+	createBookingFn           func(userID, trainID, seatID int, journeyDate, status string, tx *sql.Tx) (int, error)
+	getBookingByIDFn          func(bookingID int) (*Booking, error)
+	cancelBookingFn           func(bookingID int) error
+	unlockSeatFn              func(seatID int) error
+	unlockSeatTxFn            func(seatID int, tx *sql.Tx) error
+	deleteBookingFn           func(bookingID int, tx *sql.Tx) error
+	getBookingsByUserFn       func(userID int) ([]Booking, error)
+	isSeatAvailableForDateFn  func(seatID int, journeyDate string) (bool, error)
+	getDepartureTimeFn        func(trainID int) (string, error)
+	getAvailableSeatsFn       func(trainID int) (int, error)
 }
 
 func (m *MockRepository) GetSeatByID(seatID int) (*Seat, error) {
@@ -97,8 +93,6 @@ func (m *MockRepository) GetAvailableSeats(trainID int) (int, error) {
 	return 0, nil
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 func makeValidBookingRequest() dto.BookingRequest {
 	return dto.BookingRequest{UserID: 1, TrainID: 1, SeatID: 1, JourneyDate: "2028-12-25"}
 }
@@ -132,17 +126,15 @@ func newMockDB(t *testing.T, expectCommit bool) (*sql.DB, sqlmock.Sqlmock) {
 // successMockRepo returns a MockRepository wired for the full happy path.
 func successMockRepo() *MockRepository {
 	return &MockRepository{
-		isSeatAvailableForDateFn: func(seatID int, journeyDate string) (bool, error) { return true, nil },
-		getSeatByIDFn:            func(seatID int) (*Seat, error) { return makeMockSeat(), nil },
-		lockSeatFn:               func(seatID int, tx *sql.Tx) error { return nil },
+		isSeatAvailableForDateFn:  func(seatID int, journeyDate string) (bool, error) { return true, nil },
+		getSeatByIDFn:             func(seatID int) (*Seat, error) { return makeMockSeat(), nil },
+		lockSeatFn:                func(seatID int, tx *sql.Tx) error { return nil },
 		decrementAvailableSeatsFn: func(trainID int, tx *sql.Tx) error { return nil },
 		createBookingFn: func(userID, trainID, seatID int, journeyDate, status string, tx *sql.Tx) (int, error) {
 			return 42, nil
 		},
 	}
 }
-
-// ─── GetUserBookings ──────────────────────────────────────────────────────────
 
 func TestGetUserBookings_ReturnsBookings(t *testing.T) {
 	mock := &MockRepository{
@@ -180,8 +172,6 @@ func TestGetUserBookings_ReturnsError_WhenRepositoryFails(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 }
-
-// ─── CancelBooking ────────────────────────────────────────────────────────────
 
 func TestCancelBooking_ReturnsError_WhenBookingNotFound(t *testing.T) {
 	mock := &MockRepository{
@@ -234,8 +224,6 @@ func TestCancelBooking_ReturnsError_WhenCancelBookingFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to cancel booking")
 }
 
-// ─── IsSeatAvailableForDate ───────────────────────────────────────────────────
-
 func TestIsSeatAvailableForDate_ReturnsTrue(t *testing.T) {
 	mock := &MockRepository{
 		isSeatAvailableForDateFn: func(seatID int, journeyDate string) (bool, error) { return true, nil },
@@ -262,8 +250,6 @@ func TestIsSeatAvailableForDate_ReturnsFalse_WhenRepoErrors(t *testing.T) {
 	assert.False(t, svc.IsSeatAvailableForDate(1, "2028-12-25"))
 }
 
-// ─── IsSeatLocked — now purely in-process, no Redis ──────────────────────────
-
 func TestIsSeatLocked_ReturnsFalse_WhenNotLocked(t *testing.T) {
 	svc := NewServiceWithRepo(&MockRepository{}, nil)
 	assert.False(t, svc.IsSeatLocked(1, 1, "2028-12-25"))
@@ -277,13 +263,9 @@ func TestIsSeatLocked_ReturnsTrue_WhenLocked(t *testing.T) {
 	assert.True(t, svc.IsSeatLocked(1, 10, "2028-12-25"))
 }
 
-// ─── BookSeat ─────────────────────────────────────────────────────────────────
-
 func TestBookSeat_ReturnsConflict_WhenSeatAlreadyLocked(t *testing.T) {
 	svc := NewServiceWithRepo(&MockRepository{}, nil)
 	req := makeValidBookingRequest()
-
-	// pre-acquire the lock to simulate a concurrent holder
 	lockKey := "seat_lock:1:1:2028-12-25"
 	svc.locker.TryLock(lockKey)
 	defer svc.locker.Unlock(lockKey)
@@ -299,7 +281,7 @@ func TestBookSeat_ReturnsError_WhenDBBeginFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db.Close() // closed DB forces Begin() to fail
+	db.Close()
 
 	mock := &MockRepository{
 		isSeatAvailableForDateFn: func(seatID int, journeyDate string) (bool, error) { return true, nil },
@@ -450,18 +432,13 @@ func TestNewService_ReturnsServiceWithRepo(t *testing.T) {
 	assert.Equal(t, db, svc.db)
 }
 
-// ─── Concurrency test — the one that was impossible with Redis ────────────────
-// Verifies that the SeatLocker prevents double-booking:
-//   • Pre-lock the seat so all goroutines find it taken → conflict
-//   • Release the lock → one goroutine can now book successfully
-// This design avoids Go scheduler timing issues while still proving correctness.
 func TestBookSeat_Concurrent_OnlyOneSucceeds(t *testing.T) {
 	const goroutines = 20
 
 	repo := &MockRepository{
-		isSeatAvailableForDateFn: func(seatID int, journeyDate string) (bool, error) { return true, nil },
-		getSeatByIDFn:            func(seatID int) (*Seat, error) { return makeMockSeat(), nil },
-		lockSeatFn:               func(seatID int, tx *sql.Tx) error { return nil },
+		isSeatAvailableForDateFn:  func(seatID int, journeyDate string) (bool, error) { return true, nil },
+		getSeatByIDFn:             func(seatID int) (*Seat, error) { return makeMockSeat(), nil },
+		lockSeatFn:                func(seatID int, tx *sql.Tx) error { return nil },
 		decrementAvailableSeatsFn: func(trainID int, tx *sql.Tx) error { return nil },
 		createBookingFn: func(userID, trainID, seatID int, journeyDate, status string, tx *sql.Tx) (int, error) {
 			return 1, nil
@@ -470,10 +447,9 @@ func TestBookSeat_Concurrent_OnlyOneSucceeds(t *testing.T) {
 
 	const lockKey = "seat_lock:1:1:2028-12-25"
 
-	// ── Phase 1: all goroutines attempt while lock is held → all should conflict ──
 	{
 		svc := NewServiceWithRepo(repo, nil)
-		svc.locker.TryLock(lockKey) // pre-acquire
+		svc.locker.TryLock(lockKey)
 		defer svc.locker.Unlock(lockKey)
 
 		var wg sync.WaitGroup
@@ -500,7 +476,6 @@ func TestBookSeat_Concurrent_OnlyOneSucceeds(t *testing.T) {
 		assert.Equal(t, goroutines, conflictCount, "all goroutines should conflict while seat is locked")
 	}
 
-	// ── Phase 2: lock released → one booking should succeed ──
 	{
 		db, sqlMock, _ := sqlmock.New()
 		defer db.Close()
@@ -517,8 +492,6 @@ func TestBookSeat_Concurrent_OnlyOneSucceeds(t *testing.T) {
 		assert.Equal(t, 1, resp.BookingID)
 	}
 }
-
-// ─── confirmNextWaitlist ──────────────────────────────────────────────────────
 
 func TestConfirmNextWaitlist_SuccessfulHTTPCall(t *testing.T) {
 	called := make(chan struct{}, 1)
@@ -551,12 +524,10 @@ func TestConfirmNextWaitlist_UsesFallbackURL_WhenEnvNotSet(t *testing.T) {
 	svc := NewServiceWithRepo(&MockRepository{}, nil)
 	assert.NotPanics(t, func() { svc.confirmNextWaitlist(1, "2028-12-25") })
 }
-// ─── CancelBooking — journey already started ──────────────────────────────────
 
 func TestCancelBooking_ReturnsError_WhenJourneyAlreadyStarted(t *testing.T) {
-	// Use a journey date in the past with a departure time that has already passed
 	pastDate := "2020-01-01"
-	pastDep  := "06:00:00"
+	pastDep := "06:00:00"
 
 	svc := NewServiceWithRepo(&MockRepository{
 		getBookingByIDFn: func(bookingID int) (*Booking, error) {
@@ -574,7 +545,6 @@ func TestCancelBooking_ReturnsError_WhenJourneyAlreadyStarted(t *testing.T) {
 }
 
 func TestCancelBooking_StillCancels_WhenDepartureTimeParseErrors(t *testing.T) {
-	// If departure time can't be parsed, the check is skipped and cancel proceeds normally
 	db, sqlMock, _ := sqlmock.New()
 	defer db.Close()
 	sqlMock.ExpectBegin()
@@ -585,9 +555,9 @@ func TestCancelBooking_StillCancels_WhenDepartureTimeParseErrors(t *testing.T) {
 			return &Booking{ID: 1, UserID: 1, TrainID: 1, SeatID: 1, JourneyDate: "2028-12-25", Status: "CONFIRMED"}, nil
 		},
 		getDepartureTimeFn: func(trainID int) (string, error) {
-			return "not-a-time", nil // bad format → parse error → skip check
+			return "not-a-time", nil
 		},
-		unlockSeatFn: func(seatID int) error { return nil },
+		unlockSeatFn:    func(seatID int) error { return nil },
 		cancelBookingFn: func(bookingID int) error { return nil },
 	}, db)
 
@@ -596,12 +566,6 @@ func TestCancelBooking_StillCancels_WhenDepartureTimeParseErrors(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "CANCELLED", resp.Status)
 }
-
-// ─── ScheduleExpiryCheck ──────────────────────────────────────────────────────
-// ScheduleExpiryCheck begins with a time.Sleep(300s) which we can't short-circuit
-// from a test (BookingExpirySeconds is a const). We verify it starts without
-// panicking and that its two branches (paid / unpaid) are covered via isPaid and
-// purgeUnpaidBooking which are already tested independently above.
 
 func TestScheduleExpiryCheck_StartsWithoutPanic(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -613,12 +577,9 @@ func TestScheduleExpiryCheck_StartsWithoutPanic(t *testing.T) {
 
 	svc := NewServiceWithRepo(&MockRepository{}, nil)
 
-	// Run in goroutine — we just verify it doesn't panic at startup
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		// We can't wait 300s, so this test only covers the log.Printf entry line.
-		// The paid/unpaid branches are covered by TestIsPaid_* and TestPurgeUnpaidBooking_*.
 	}()
 	_ = svc // suppress unused warning
 	select {
@@ -626,10 +587,6 @@ func TestScheduleExpiryCheck_StartsWithoutPanic(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 	}
 }
-
-// ─── syncSeatsToES ────────────────────────────────────────────────────────────
-// syncSeatsToES type-asserts s.repo to *Repository, so we must use a real
-// Repository backed by sqlmock to exercise its internal paths.
 
 func TestSyncSeatsToES_LogsAndReturns_WhenGetAvailableSeatsFails(t *testing.T) {
 	db, sqlMock, _ := sqlmock.New()

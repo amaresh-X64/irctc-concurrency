@@ -21,14 +21,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(
-    controllers = PaymentController.class,
-    // Exclude JWT filter so tests don't need real tokens
-    excludeFilters = @ComponentScan.Filter(
-        type = FilterType.ASSIGNABLE_TYPE,
-        classes = com.irctc.middleware.JwtAuthFilter.class
-    )
-)
+@WebMvcTest(controllers = PaymentController.class, excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = com.irctc.middleware.JwtAuthFilter.class))
 class PaymentControllerTest {
 
     @Autowired
@@ -39,8 +32,6 @@ class PaymentControllerTest {
 
     @MockBean
     private PaymentService paymentService;
-
-    // ─── helper ───────────────────────────────────────────────────────────────
 
     private PaymentRequest makeRequest() {
         PaymentRequest req = new PaymentRequest();
@@ -63,8 +54,6 @@ class PaymentControllerTest {
         resp.setPaidAt(LocalDateTime.now());
         return resp;
     }
-
-    // ─── POST /api/v1/payments ────────────────────────────────────────────────
 
     @Test
     void processPayment_Returns200_WhenPaymentSucceeds() throws Exception {
@@ -129,8 +118,6 @@ class PaymentControllerTest {
                 .andExpect(jsonPath("$.data.bookingId").value(1))
                 .andExpect(jsonPath("$.data.userId").value(10));
     }
-
-    // ─── GET /api/v1/payments/booking/{bookingId} ─────────────────────────────
 
     @Test
     void getPaymentByBooking_Returns200_WhenPaymentExists() throws Exception {

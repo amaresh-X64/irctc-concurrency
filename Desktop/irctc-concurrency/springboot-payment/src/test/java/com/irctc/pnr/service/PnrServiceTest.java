@@ -24,8 +24,7 @@ class PnrServiceTest {
 
     @InjectMocks
     private PnrService pnrService;
-    private final ArgumentCaptor<Pnr> pnrCaptor =
-            ArgumentCaptor.forClass(Pnr.class);
+    private final ArgumentCaptor<Pnr> pnrCaptor = ArgumentCaptor.forClass(Pnr.class);
 
     private Pnr samplePnr;
 
@@ -57,7 +56,6 @@ class PnrServiceTest {
 
         pnrService.generatePnr(10, 100, 5);
 
-        // use class-level captor — no need to declare inside test
         assertThat(pnrCaptor.getValue().getBookingId()).isEqualTo(10);
     }
 

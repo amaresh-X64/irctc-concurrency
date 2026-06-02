@@ -8,9 +8,6 @@ logger = logging.getLogger(__name__)
 ELASTIC_URL = os.getenv("ELASTICSEARCH_URL", "http://elasticsearch:9200")
 INDEX_NAME = "trains"
 
-# Index mapping — source/destination use both keyword (exact) and text (fuzzy).
-# available_seats is stored but NOT used for filtering here; it's refreshed
-# by the Gin booking service via the /internal/trains/{id}/seats endpoint.
 INDEX_MAPPING = {
     "settings": {
         "analysis": {
@@ -56,7 +53,6 @@ INDEX_MAPPING = {
 
 
 def get_es_client() -> Optional[Elasticsearch]:
-    """Return an ES client, or None if ES is unreachable (graceful degradation)."""
     try:
         client = Elasticsearch(ELASTIC_URL, request_timeout=3)
         if client.ping():
@@ -68,19 +64,16 @@ def get_es_client() -> Optional[Elasticsearch]:
 
 
 def ensure_index(client: Elasticsearch) -> None:
-    """Create the trains index with mapping if it does not exist."""
     if not client.indices.exists(index=INDEX_NAME):
         client.indices.create(index=INDEX_NAME, body=INDEX_MAPPING)
         logger.info("Created Elasticsearch index '%s'", INDEX_NAME)
 
 
 def index_train(client: Elasticsearch, train: dict) -> None:
-    """Upsert a single train document."""
     client.index(index=INDEX_NAME, id=train["id"], document=train)
 
 
 def bulk_index_trains(client: Elasticsearch, trains: list[dict]) -> None:
-    """Bulk upsert all trains (used at startup)."""
     if not trains:
         return
     actions = []
@@ -92,7 +85,6 @@ def bulk_index_trains(client: Elasticsearch, trains: list[dict]) -> None:
 
 
 def update_available_seats(client: Elasticsearch, train_id: int, available_seats: int) -> None:
-    """Partial update — only refresh the available_seats field."""
     try:
         client.update(
             index=INDEX_NAME,
@@ -108,13 +100,6 @@ def search_trains(
     source: str,
     destination: str,
 ) -> list[dict]:
-    """
-    Fuzzy search on source + destination with:
-      - exact match boosted above fuzzy
-      - fuzziness AUTO (handles typos up to 2 chars on longer strings)
-      - asciifolding so 'Bengaluru'/'Bangalore' both work
-    Returns train dicts sorted by departure_time ascending.
-    """
     query = {
         "query": {
             "bool": {
@@ -147,7 +132,6 @@ def search_trains(
 
 
 def search_all_trains(client: Elasticsearch) -> list[dict]:
-    """Return all trains sorted by departure_time (used by get_all_trains)."""
     resp = client.search(
         index=INDEX_NAME,
         body={
