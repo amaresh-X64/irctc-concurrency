@@ -219,7 +219,7 @@ def test_update_available_seats_handles_not_found_gracefully():
 def test_update_available_seats_sets_zero_seats():
     client = make_client()
 
-    update_available_seats(client, train_id=5, available_seats=1)
+    update_available_seats(client, train_id=5, available_seats=0)
 
     _, kwargs = client.update.call_args
     assert kwargs["doc"] == {"available_seats": 0}
