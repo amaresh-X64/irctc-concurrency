@@ -18,16 +18,14 @@ pipelines:
                     command: bash
                     arguments:
                       - -c
-                      - cd Desktop/irctc-concurrency/fastapi-trains && pip install -r requirements.txt && python3 -m pytest app/ -v
-
+                      - cd Desktop/irctc-concurrency/fastapi-trains && pip install -r requirements.txt pytest --break-system-packages && python3 -m pytest app/ -v
             test-gin:
               tasks:
                 - exec:
                     command: bash
                     arguments:
                       - -c
-                      - cd Desktop/irctc-concurrency/gin-booking && go test ./...
-
+                      - cd Desktop/irctc-concurrency/gin-booking && JWT_SECRET_KEY=test-secret go test ./...
             test-springboot:
               tasks:
                 - exec:
