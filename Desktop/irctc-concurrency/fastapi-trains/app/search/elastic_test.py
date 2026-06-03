@@ -213,7 +213,7 @@ def test_update_available_seats_handles_not_found_gracefully():
         message="not found", meta=meta, body={}
     )
 
-    update_available_seats(client, train_id=999, available_seats=10)
+    update_available_seats(client, train_id=999, available_seats=1)
 
 
 def test_update_available_seats_sets_zero_seats():
