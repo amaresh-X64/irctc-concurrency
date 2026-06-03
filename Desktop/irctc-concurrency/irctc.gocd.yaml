@@ -18,7 +18,13 @@ pipelines:
                     command: bash
                     arguments:
                       - -c
-                      - cd Desktop/irctc-concurrency/fastapi-trains && pip install -r requirements.txt pytest --break-system-packages && python3 -m pytest app/ -v
+                      - |
+                        cd Desktop/irctc-concurrency/fastapi-trains
+                        pip install -r requirements.txt
+                        pip install pytest
+                        DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/irctc \
+                        JWT_SECRET_KEY=test-secret \
+                        python3 -m pytest app/ -v
             test-gin:
               tasks:
                 - exec:
