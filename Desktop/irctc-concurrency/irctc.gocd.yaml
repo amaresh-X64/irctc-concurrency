@@ -59,7 +59,12 @@ pipelines:
                     arguments:
                       - -c
                       - |
-                        cd Desktop/irctc-concurrency
+                        cd /godata/pipelines/irctc-concurrency/Desktop/irctc-concurrency
+                        if [ ! -f .env ]; then
+                          echo "ERROR: .env file not found!"
+                          exit 1
+                        fi
                         docker compose --env-file .env down --remove-orphans
-                        docker compose --env-file .env up -d
+                        docker compose --env-file .env up -d 2>&1
+                        echo "Exit code: $?"
                         docker compose ps
