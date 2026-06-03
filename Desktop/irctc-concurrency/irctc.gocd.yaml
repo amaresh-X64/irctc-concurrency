@@ -18,7 +18,7 @@ pipelines:
                     command: bash
                     arguments:
                       - -c
-                      - cd fastapi-trains && pip install -r requirements.txt && pytest app/ -v
+                      - cd Desktop/irctc-concurrency/fastapi-trains && pip install -r requirements.txt && pytest app/ -v
 
             test-gin:
               tasks:
@@ -26,7 +26,7 @@ pipelines:
                     command: bash
                     arguments:
                       - -c
-                      - cd gin-booking && go test ./...
+                      - cd Desktop/irctc-concurrency/gin-booking && go test ./...
 
             test-springboot:
               tasks:
@@ -34,7 +34,7 @@ pipelines:
                     command: bash
                     arguments:
                       - -c
-                      - cd springboot-payment && mvn test -q
+                      - cd Desktop/irctc-concurrency/springboot-payment && mvn test -q
 
       - build:
           jobs:
@@ -44,7 +44,7 @@ pipelines:
                     command: bash
                     arguments:
                       - -c
-                      - docker compose build
+                      - cd Desktop/irctc-concurrency && docker compose build
 
       - deploy:
           jobs:
@@ -55,6 +55,7 @@ pipelines:
                     arguments:
                       - -c
                       - |
+                        cd Desktop/irctc-concurrency
                         docker compose --env-file .env down --remove-orphans
                         docker compose --env-file .env up -d
                         docker compose ps
