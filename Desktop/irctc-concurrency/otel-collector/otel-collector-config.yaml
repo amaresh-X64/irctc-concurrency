@@ -1,0 +1,42 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: "irctc-local"
+        action: upsert
+
+exporters:
+  # Sends traces to Elasticsearch as documents in the irctc-traces index
+  elasticsearch:
+    endpoints: ["http://elasticsearch:9200"]
+    traces_index: irctc-traces
+    retry:
+      enabled: true
+      max_requests: 3
+      initial_interval: 1s
+      max_interval: 10s
+
+  # Also log to stdout so you can see spans in docker logs otel-collector
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [elasticsearch, debug]

@@ -38,6 +38,26 @@ services:
       timeout: 10s
       retries: 10
 
+  # ─── OpenTelemetry Collector ──────────────────────────────────────────────
+  # Receives OTLP spans from all 3 services (gRPC :4317 / HTTP :4318)
+  # Exports them to Elasticsearch as documents in the irctc-traces index
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.100.0
+    container_name: irctc_otel_collector
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./otel-collector/otel-collector-config.yaml:/etc/otel/config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC — used by Go and Java
+      - "4318:4318"   # OTLP HTTP — used by Python
+      - "8888:8888"   # Collector internal metrics (optional)
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - irctc_network
+    restart: unless-stopped
+
   fastapi-trains:
     build:
       context: ./fastapi-trains
@@ -49,11 +69,19 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       ELASTICSEARCH_URL: http://elasticsearch:9200
+      # OTel config — Python SDK reads these automatically
+      OTEL_SERVICE_NAME: fastapi-trains
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_PYTHON_LOG_CORRELATION: "true"
     depends_on:
       postgres:
         condition: service_healthy
       elasticsearch:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
     networks:
       - irctc_network
     restart: unless-stopped
@@ -71,9 +99,16 @@ services:
       SPRINGBOOT_URL: ${SPRINGBOOT_URL}
       FASTAPI_URL: ${FASTAPI_URL}
       PORT: ${PORT}
+      # OTel config — Go SDK reads these
+      OTEL_SERVICE_NAME: gin-booking
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_TRACES_EXPORTER: otlp
     depends_on:
       postgres:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
     networks:
       - irctc_network
     restart: unless-stopped
@@ -91,9 +126,16 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
       SERVER_PORT: ${SERVER_PORT}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      # OTel config — Java agent reads these
+      OTEL_SERVICE_NAME: springboot-payment
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_TRACES_EXPORTER: otlp
     depends_on:
       postgres:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
     networks:
       - irctc_network
     restart: unless-stopped
@@ -113,6 +155,22 @@ services:
       - gin-booking
       - fastapi-trains
       - springboot-payment
+    networks:
+      - irctc_network
+    restart: unless-stopped
+
+  trace-anomaly:
+    build:
+      context: ./trace-anomaly
+      dockerfile: Dockerfile
+    container_name: irctc_trace_anomaly
+    ports:
+      - "8004:8004"
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
     networks:
       - irctc_network
     restart: unless-stopped

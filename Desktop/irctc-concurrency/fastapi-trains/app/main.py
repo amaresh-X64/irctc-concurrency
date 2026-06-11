@@ -1,18 +1,26 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from app.trains.controller import router as trains_router, internal_router as trains_internal_router
 from app.waitlist.controller import router as waitlist_router
 from app.auth.controller import router as auth_router
 from app.constants.constants import APP_NAME, APP_VERSION, API_PREFIX
 from app.middleware.auth import SessionLocal
 from app.trains.service import TrainService
+from app.telemetry import setup_tracing
+
 import logging
 logging.basicConfig(level=logging.INFO)
+
 app = FastAPI(
     title=APP_NAME,
     version=APP_VERSION,
     swagger_ui_parameters={"persistAuthorization": True},
 )
+
+# ── OTel: must be called BEFORE add_middleware and include_router ────────────
+# FastAPIInstrumentor wraps the app in place; order matters.
+setup_tracing(app)
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,13 +30,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_router,             prefix=API_PREFIX)
-app.include_router(trains_router,           prefix=API_PREFIX)
+app.include_router(auth_router,              prefix=API_PREFIX)
+app.include_router(trains_router,            prefix=API_PREFIX)
 app.include_router(trains_internal_router)
-app.include_router(waitlist_router,         prefix=API_PREFIX)
+app.include_router(waitlist_router,          prefix=API_PREFIX)
 
 
-@app.on_event("startup")  
+@app.on_event("startup")
 def startup_event():
     db = SessionLocal()
     try:
