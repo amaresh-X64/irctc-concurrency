@@ -58,6 +58,18 @@ services:
       - irctc_network
     restart: unless-stopped
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: irctc_jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"   # Jaeger UI
+    depends_on:
+      - otel-collector
+    networks:
+      - irctc_network
+    restart: unless-stopped
   fastapi-trains:
     build:
       context: ./fastapi-trains

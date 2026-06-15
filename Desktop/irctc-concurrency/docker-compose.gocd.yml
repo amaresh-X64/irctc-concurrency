@@ -1,0 +1,26 @@
+services:
+  gocd-server:
+    image: gocd/gocd-server:v24.1.0
+    container_name: gocd_server
+    ports:
+      - "8153:8153"
+    volumes:
+      - gocd_server_data:/godata
+    restart: unless-stopped
+
+  gocd-agent:
+    image: gocd/gocd-agent-docker-dind:v24.1.0   # ← this is the key image
+    container_name: gocd_agent
+    environment:
+      - GO_SERVER_URL=http://gocd-server:8153/go
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  # ← agent uses host Docker
+      - gocd_agent_data:/godata
+    depends_on:
+      - gocd-server
+    privileged: true                               # ← needed for dind
+    restart: always
+
+volumes:
+  gocd_server_data:
+  gocd_agent_data:

@@ -18,6 +18,11 @@ processors:
       - key: deployment.environment
         value: "irctc-local"
         action: upsert
+  filter/only-bookseat:             
+    error_mode: ignore
+    traces:
+      span:
+        - 'name != "BookSeat" and name != "SeatLocker.TryLock" and name != "BookSeat.DBTransaction"'
 
 exporters:
   # Sends traces to Elasticsearch as documents in the irctc-traces index
@@ -34,9 +39,14 @@ exporters:
   debug:
     verbosity: basic
 
+  otlp/jaeger:                    # ← add this block
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch, resource]
-      exporters: [elasticsearch, debug]
+      processors: [memory_limiter, batch, resource, filter/only-bookseat]
+      exporters: [elasticsearch, debug , otlp/jaeger]
