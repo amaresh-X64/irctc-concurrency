@@ -67,7 +67,7 @@ def register_default_rules():
         {
             "id": "rule-booking-failed",
             "rule_name": "booking_outcome_anomaly",
-            "severity": "CRITICAL",
+            "severity": "ERROR",
             "description": "BookSeat span completed with non-confirmed outcome",
             "query": {
                 "bool": {
@@ -81,7 +81,7 @@ def register_default_rules():
         {
             "id": "rule-contention-spike",
             "rule_name": "lock_contention_outcome",
-            "severity": "CRITICAL",
+            "severity": "WARNING",
             "description": "Booking resulted in lock_contention outcome — seat taken by another user",
             "query": {
                 "term": {"Attributes.booking.outcome": "lock_contention"}
