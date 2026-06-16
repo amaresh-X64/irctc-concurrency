@@ -1,0 +1,47 @@
+version: "3.8"
+
+services:
+
+  gocd-server:
+    image: gocd/gocd-server:v24.3.0
+    container_name: gocd_server
+    ports:
+      - "8153:8153"
+      - "8154:8154"
+    volumes:
+      - gocd_server_home:/home/go
+    networks:
+      - gocd_net
+    restart: unless-stopped
+
+  gocd-agent:
+    image: gocd/gocd-agent-ubuntu-22.04:v24.3.0
+    container_name: gocd_agent
+    user: root
+    environment:
+      GO_SERVER_URL: http://gocd-server:8153/go
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - gocd_agent_home:/home/go
+    entrypoint: >
+      sh -c "apt-get update -qq &&
+             apt-get install -y -qq ca-certificates curl &&
+             install -m 0755 -d /etc/apt/keyrings &&
+             curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc &&
+             echo 'deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu jammy stable' > /etc/apt/sources.list.d/docker.list &&
+             apt-get update -qq &&
+             apt-get install -y -qq docker-ce-cli docker-compose-plugin &&
+             /docker-entrypoint.sh"
+    networks:
+      - gocd_net
+    depends_on:
+      - gocd-server
+    restart: unless-stopped
+
+volumes:
+  gocd_server_home:
+  gocd_agent_home:
+
+networks:
+  gocd_net:
+    driver: bridge

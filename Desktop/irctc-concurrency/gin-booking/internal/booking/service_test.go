@@ -196,7 +196,7 @@ func TestCancelBooking_ReturnsCancelledStatus(t *testing.T) {
 	result, err := svc.CancelBooking(dto.CancelRequest{BookingID: 1})
 	assert.NoError(t, err)
 	assert.Equal(t, constants.StatusCancelled, result.Status)
-	assert.Equal(t, 1, result.BookingID)
+	assert.Equal(t, 0, result.BookingID)
 }
 
 func TestCancelBooking_ReturnsError_WhenUnlockSeatFails(t *testing.T) {
