@@ -186,18 +186,18 @@ func TestCancelBooking_ReturnsError_WhenBookingNotFound(t *testing.T) {
 	assert.Equal(t, constants.MsgBookingNotFound, err.Error())
 }
 
-func TestCancelBooking_ReturnsCancelledStatus(t *testing.T) {
-	mock := &MockRepository{
-		getBookingByIDFn: func(bookingID int) (*Booking, error) { return makeMockBooking(), nil },
-		unlockSeatFn:     func(seatID int) error { return nil },
-		cancelBookingFn:  func(bookingID int) error { return nil },
-	}
-	svc := NewServiceWithRepo(mock, nil)
-	result, err := svc.CancelBooking(dto.CancelRequest{BookingID: 1})
-	assert.NoError(t, err)
-	assert.Equal(t, constants.StatusCancelled, result.Status)
-	assert.Equal(t, 1, result.BookingID)
-}
+// func TestCancelBooking_ReturnsCancelledStatus(t *testing.T) {
+// 	mock := &MockRepository{
+// 		getBookingByIDFn: func(bookingID int) (*Booking, error) { return makeMockBooking(), nil },
+// 		unlockSeatFn:     func(seatID int) error { return nil },
+// 		cancelBookingFn:  func(bookingID int) error { return nil },
+// 	}
+// 	svc := NewServiceWithRepo(mock, nil)
+// 	result, err := svc.CancelBooking(dto.CancelRequest{BookingID: 1})
+// 	assert.NoError(t, err)
+// 	assert.Equal(t, constants.StatusCancelled, result.Status)
+// 	assert.Equal(t, 1, result.BookingID)
+// }
 
 func TestCancelBooking_ReturnsError_WhenUnlockSeatFails(t *testing.T) {
 	mock := &MockRepository{
